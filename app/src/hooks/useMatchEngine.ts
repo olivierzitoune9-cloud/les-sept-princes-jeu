@@ -68,10 +68,6 @@ export default function useMatchEngine() {
   const convertToUIState = useCallback((state: MatchState): UIMatchState => {
     const players: UIPlayer[] = Object.values(state.players)
       .filter(p => p.isOnCourt)
-  // Convertir l'état du moteur en état UI
-  const convertToUIState = useCallback((state: MatchState): UIMatchState => {
-    const players: UIPlayer[] = Object.values(state.players)
-      .filter(p => p.isOnCourt)
       .map(p => ({
         id: p.id,
         name: p.name,
@@ -114,31 +110,12 @@ export default function useMatchEngine() {
   }, [initializeMatch])
 
   // Générer les actions disponibles pour un joueur
-        position: p.position,
-        role: roleLabels[p.role],
-        hasBall: state.ball.holderId === p.id,
-        fatigue: Math.round(p.energy),
-        pressure: Math.round(p.pressure)
-      }))
-
-    return {
-      players,
-      ball: { position: state.ball.position },
-      score: {
-        nangis: state.teams.nangis.score,
-        lagny: state.teams.lagny.score
-      },
-      time: state.timeSeconds,
-      possession: state.teams.nangis.possession ? 'nangis' : 'lagny'
-    }
-  }, [])
-
-  // Générer les actions disponibles pour un joueur
   const generateAvailableActions = useCallback((state: MatchState, playerId: string): Action[] => {
     const player = state.players[playerId]
     if (!player || state.ball.holderId !== playerId) {
       return []
     }
+
     const team = player.team as TeamId
     const actions: Action[] = []
 
