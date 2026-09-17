@@ -1,0 +1,20 @@
+{
+  "name": "sept-princes-jeu",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Jeu de handball tactique Les Sept Princes",
+  "scripts": {
+    "build:engine": "cd engine && npm install && npm run build",
+    "build:app": "cd app && npm install && npm run build",
+    "build:all": "npm run build:engine && npm run build:app",
+    "dev": "cd app && npm run dev",
+    "preview": "cd app && npm run preview"
+  },
+  "keywords": [
+    "handball",
+    "tactics",
+    "game"
+  ],
+  "author": "",
+  "license": "UNLICENSED"
+}

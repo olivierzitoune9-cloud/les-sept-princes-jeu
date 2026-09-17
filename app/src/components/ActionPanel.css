@@ -1,0 +1,189 @@
+.action-panel {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--bg-medium);
+  border-top: 2px solid var(--action-color);
+  padding: 1.5rem 2rem;
+  z-index: 100;
+  animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.player-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.player-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.player-badge.nangis {
+  background: var(--nangis-color);
+}
+
+.player-badge.lagny {
+  background: var(--lagny-color);
+}
+
+.player-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.player-name {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.player-status {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.status-item {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.status-bar {
+  width: 60px;
+  height: 4px;
+  background: var(--bg-dark);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.status-fill {
+  height: 100%;
+  transition: width 0.3s;
+}
+
+.status-fill.energy {
+  background: var(--action-color);
+}
+
+.status-fill.energy.low {
+  background: var(--warning-color);
+}
+
+.status-fill.pressure {
+  background: var(--warning-color);
+}
+
+.status-fill.pressure.high {
+  background: var(--danger-color);
+}
+
+.actions-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.75rem;
+  max-width: 1000px;
+}
+
+.action-button {
+  padding: 1rem;
+  background: var(--bg-light);
+  border: 2px solid transparent;
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+  transition: all 0.2s;
+  text-align: left;
+}
+
+.action-button:hover:not(:disabled) {
+  background: var(--bg-dark);
+  border-color: var(--action-color);
+  transform: translateY(-2px);
+}
+
+.action-button:disabled {
+  opacity: 0.4;
+}
+
+.action-name {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.action-description {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.action-risk {
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  border-radius: 3px;
+  font-size: 0.625rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.action-risk.safe {
+  background: rgba(16, 185, 129, 0.2);
+  color: var(--action-color);
+}
+
+.action-risk.moderate {
+  background: rgba(245, 158, 11, 0.2);
+  color: var(--warning-color);
+}
+
+.action-risk.risky {
+  background: rgba(239, 68, 68, 0.2);
+  color: var(--danger-color);
+}
+
+.close-button {
+  padding: 0.5rem 1rem;
+  background: var(--bg-light);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+
+.close-button:hover {
+  background: var(--bg-dark);
+  color: var(--text-primary);
+}

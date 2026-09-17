@@ -1,0 +1,28 @@
+Les Sept Princes Final Eight : Kill the Kings
+
+Chapitre 1 : Les Princes contre le Royaume du Roi Visionnaire (1) : Coup d’envoi
+
+Vendredi 27 juin à 16h. La Maison du handball était pleine à craquer. Les Princes étaient rentrés à 15h dans la salle, et depuis, c’était comme une bulle, isolée du monde. D’un côté, un violet resplendissant scintillait, aux couleurs de Nantes. Enfin, non, ce n’était plus Nantes, c’était le Royaume du roi Visionnaire. En face, le grenat rayonnait : les couleurs des Princes étaient à l’honneur. L’ambiance était folle, et il y avait tout un scénario. C’était clair : les Princes venaient défier le Royaume de Moussa. Je vous passe les fantaisies des speakers \! Les supporteurs nantais étaient en furie « Venez chers Princes \! Venez prendre la tête de notre Roi si vous le pouvez \! Venez prendre notre couronne \! » 
+
+Du côté des Princes, on se savait bien préparés. Ils étaient dans une forme extraordinaire. Il est 16h. On respirait, et on inspirait. Les tribunes retenaient leurs soufflés, leurs voixs, leurs passiosn. L’engagement était pour les Princes.
+
+Moussa était face à Aaron. Ils se souriaient. Ils s’étaient beaucoup parlé dernièrement, alors ils n’avaient plus rien à se dire. Moussa avait tellement hâte : il n’avait pas le regard d’un joueur qui avait sa tête mise à prix, et qui était sur le point de s’entretuer avec un jeune affamé de gloire. Moussa regardait plutôt fraternellement son adversaire, et il lui disait, d’une douceur, d’une tendresse inouïe : « qu’Allâh nous facilite, Aaron \! Que le meilleur gagne \! ». Aaron était tellement attendri \! Mais c’est normal après tout \! On était vendredi, alors Issa, Aaron, Azel, Imrane sont partis à la prière du vendredi, à 12h30, avec Moussa, Ibrahim, Ismaël, Ozias, et Azaria \! Des liens fraternels s’étaient créés. 
+
+Quand le coup de sifflet a retenti, ses liens étaient toujours là \! Ils étaient dans ce ballon, qui passait des mains d’Aaron aux mains de Moussa, d’Azel à Issac, comme c’était la coutume dans les matchs professionnels. Et puis, les regards devenaient plus sérieux : les liens étaient toujours là, bien sûr, mais la balle avait été projeté au fond des filets par Azel d’Orvilliers, le numéro 17 \! 
+
+Les supporters des Princes « Notre Prince aux yeux vairons \! Aux yeux vairons \! Il prendra la couronne \! La couronne de Nicolas \! », tandis que tout le gymnase devenait de couleur grenat \! 
+
+Moussa souriait \! Il était tellement heureux. Ses coéquipiers savaient bien ce qu’il risquait d’arriver, et ils en riaient. C’était la 45e seconde du match. 
+
+Chapitre 2 : Les Princes contre le Royaume Visionnaire (2) : 
+
+Ayoub et Alexander ont tout de suite vu que physiquement, les Princes ont encore progressé. Ils ont reconnu le sourire de Moussa… « déjà ? » 
+
+Moussa faisait tourner le ballon : il l’envoyait à Ibrahim pour Amael pour Ibrahim, pour Moussa, pour Isaac, pour Uriel \! Moussa annonçait : « Les fabuleuses circulations marchandes de la Loire \! ». Comme toujours, le public riait en entendant ces combinaisons \! Mais les Princes ne riaient pas… 
+
+Avant que Moussa lance son attaque, voici la défense des Princes, de gauche à droite : Malone, Laïth, Azel, Aaron, Gianni, Imrane. 
+
+Uriel attaquait entre Imrane et Gianni puis passait à Ismaël, avant de courir. Il faisait une course assez arrondie. Ismaël arrive devant Gianni, il le regardait droit dans les yeux et tentait vraiment de passer, avant de l’envoyer à Moussa qui était venu entre Aaron et Gianni. Aaron pensait qu’il allait fixer mais il envoyait directement la balle à Uriel, qui attendait entre Azel et lui. Il envoyait ensuite à Ibrahim qui arrivait lancer entre Laïth et Azel. Ozias était là, entre Azel et Laïth \! Finalement, Ibrahim envoyait très vite à Ismaël, entre Azel et Aaron, une fois encore \! Ismaël attaque entre eux, puis entre Aaron et Gianni, avant de passer à Amaël qui était venu jusque-là. Ce dernier regarde Moussa, à droite : la séquence semble logique. Et toujours en regardant Moussa, Amaël plonge entre Aaron et Azel. Aaron veut suivre, mais c’est sans compter sur Ismaël qui s’est glissé en deuxième pivot. Azel s’y charge donc, et le duel démarre : Amaël est très explosif mais Azel suit très bien. C’est très bien défendu pour Aymeric \! Ozias est sur Laïth, et comme Amael est sorti, Malone peut aider sur le pivot \! Laïth se concentre sur Ibrahim et anticipait légèrement la passe, comme prévu dans la préparation du match. Aaron est pris par Ismaël, oui, mais Gianni peut gérer Moussa à droite… et Uriel ? Où était-il ? Arthur le voit et il prévient directement Gianni de rester attentif \! Uriel est venu croiser derrière Amaël qui passe le ballon \! Uriel tente entre Gianni et Aaron, avec Ismaël qui gêne, mais Gianni est soutenu par Imrane. 
+
+Quelle est la situation ? Malone est aux prises avec Ozias. Laïth surveille Ibrahim. Azel est aux prises avec Amaël qui est descendu en pivot. Aaron est aux prises avec Ismael. Gianni défend sur Uriel tout en surveillant Ismaël. Imrane surveille Moussa qui disparaît dans l’agitation, dans le trouble des circulations nantaises… il arrive secteur central, et Azel et Aaron.. si Azel monte, Amaël est seul. Si Aaron monte, Ismaël est seul. Ils n’hésitent qu’une fraction de seconde, mais cela suffit pour que Moussa arrive devant Issa. Issa sait qu’il arrive rapidement. Aussi, il risque de manquer de lucidité : il s’avance \! Sa grande envergure fait que Moussa est pressé : il faut prendre une décision, et vite, mais laquelle ? Souvent, ce genre de situation se finit sur un tir sur le gardien, car l’attaquant a mal fixé. Mais ce n’est pas un attaquant ordinaire.. c’est Moussa, le roi Visionnaire. Il bat Issa d’un lob magnifique. 
+

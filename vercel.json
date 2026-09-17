@@ -1,0 +1,1 @@
+﻿{"buildCommand":"npm run build:all","outputDirectory":"app/dist","installCommand":"npm install --prefix engine && npm install --prefix app","framework":null,"rewrites":[{"source":"/(.*)",destination":"/index.html"}]}
