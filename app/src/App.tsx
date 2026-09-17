@@ -54,7 +54,7 @@ function App() {
       <div className="main-container">
         <Field
           matchState={matchState}
-          selectedPlayer={selectedPlayer}
+          selectedPlayer={selectedPlayer?.id || null}
           onPlayerSelect={selectPlayer}
         />
       </div>

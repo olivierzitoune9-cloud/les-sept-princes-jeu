@@ -64,23 +64,10 @@ export default function useMatchEngine() {
   const actionCountRef = useRef(0)
   const possessionCountRef = useRef(0)
 
-  // Initialiser le match
-  const initializeMatch = useCallback(() => {
-    const initialState = createPilotMatch(Date.now())
-    setEngineState(initialState)
-    setMatchState(convertToUIState(initialState))
-    setIsPaused(true)
-    setIsMatchOver(false)
-    setSelectedPlayer(null)
-    setAvailableActions([])
-    actionCountRef.current = 0
-    possessionCountRef.current = 0
-  }, [convertToUIState])
-
-  useEffect(() => {
-    initializeMatch()
-  }, [])
-
+  // Convertir l'état du moteur en état UI
+  const convertToUIState = useCallback((state: MatchState): UIMatchState => {
+    const players: UIPlayer[] = Object.values(state.players)
+      .filter(p => p.isOnCourt)
   // Convertir l'état du moteur en état UI
   const convertToUIState = useCallback((state: MatchState): UIMatchState => {
     const players: UIPlayer[] = Object.values(state.players)
@@ -109,14 +96,49 @@ export default function useMatchEngine() {
     }
   }, [])
 
+  // Initialiser le match
+  const initializeMatch = useCallback(() => {
+    const initialState = createPilotMatch(Date.now())
+    setEngineState(initialState)
+    setMatchState(convertToUIState(initialState))
+    setIsPaused(true)
+    setIsMatchOver(false)
+    setSelectedPlayer(null)
+    setAvailableActions([])
+    actionCountRef.current = 0
+    possessionCountRef.current = 0
+  }, [convertToUIState])
+
+  useEffect(() => {
+    initializeMatch()
+  }, [initializeMatch])
+
+  // Générer les actions disponibles pour un joueur
+        position: p.position,
+        role: roleLabels[p.role],
+        hasBall: state.ball.holderId === p.id,
+        fatigue: Math.round(p.energy),
+        pressure: Math.round(p.pressure)
+      }))
+
+    return {
+      players,
+      ball: { position: state.ball.position },
+      score: {
+        nangis: state.teams.nangis.score,
+        lagny: state.teams.lagny.score
+      },
+      time: state.timeSeconds,
+      possession: state.teams.nangis.possession ? 'nangis' : 'lagny'
+    }
+  }, [])
+
   // Générer les actions disponibles pour un joueur
   const generateAvailableActions = useCallback((state: MatchState, playerId: string): Action[] => {
     const player = state.players[playerId]
     if (!player || state.ball.holderId !== playerId) {
       return []
     }
-
-    const random = new SeededRandom(state.seed + state.events.length)
     const team = player.team as TeamId
     const actions: Action[] = []
 

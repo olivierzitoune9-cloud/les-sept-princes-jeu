@@ -53,6 +53,6 @@ export function mentalSwing(state: MatchState, actorId: string, positive: boolea
   return nextState;
 }
 
-export function goalkeeperOpponent(state: MatchState, shooterTeam: TeamId): TeamId {
+export function goalkeeperOpponent(_state: MatchState, shooterTeam: TeamId): TeamId {
   return opponentOf(shooterTeam);
 }
