@@ -74,6 +74,14 @@ Ce fichier trace les decisions qui structurent le projet. Une nouvelle decision 
 - Raison : valider le coeur tactique, l interface et la fidelite du handball avant de multiplier le contenu.
 - Impact : le plan 16 devient le sequenceur de production ; les nouveaux personnages arrivent seulement apres validation des phases B et C.
 
+## D-010 - Porteur mobile, elan du tir, deplacements bornes
+
+- Date : 2026-09-18
+- Statut : adoptee (passe MOTEUR conclue, doc 17)
+- Decision : le porteur avance ballon en main par pas bornes de 3,5 m (`run`, `move`) ; la course construit un elan (`momentum`) qui alimente le tir en appui puis est consomme ; l elan retombe a chaque remise en jeu. Aucune action `cross`, `block`, `mark`, `help`, `move` ne teleporte : helper `stepToward`, 3,5 m max, la decision (assignation, pression) est immediate, seul le corps suit par trajectoire. Forme d attaque par roles : ailes larges, arrieres a 9 m, pivot appuye sur 6 m.
+- Raison : fermer les ecarts E-002 (tir-des) et E-003 (teleportations) mesures contre doc 01 §4-5 et doc 05 terrain continu ; rendre E-001 exploitable (marquage strict suivi par trajectoire).
+- Impact : `engine.ts` (`stepToward`, `run`, `move`, `shoot`, `defensiveIntents`), `possession.ts` (`installPossession`), `formation.ts` (ATTACK), `engine.test.ts` (3 tests). Aucun changement de perimetre hors moteur.
+
 ## Regle de mise a jour
 
 Ajouter une entree avant toute modification de perimetre, de source, de regle de simulation ou de contrainte licite. Indiquer le document affecte et le test qui doit changer.

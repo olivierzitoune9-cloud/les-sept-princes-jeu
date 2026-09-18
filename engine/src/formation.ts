@@ -61,14 +61,15 @@ const HYBRID_ONE_TWO_THREE: ShapeSlot[] = [
   slot('advanced', ['center'], 11.5, 10)
 ];
 
-// Attaque installee autour du 9 m adverse.
+// Attaque installee autour du 9 m adverse : ailes hauts et larges pour
+// etirer, arrieres a 9 m, pivot appuye sur la ligne des 6 m (doc 17, E-003).
 const ATTACK: ShapeSlot[] = [
-  slot('left-wing', ['wing'], 6, 2.5, 'opponent-goal'),
-  slot('right-wing', ['wing'], 6, 17.5, 'opponent-goal'),
-  slot('left-back', ['back'], 10.5, 6, 'opponent-goal'),
-  slot('right-back', ['back'], 10.5, 14, 'opponent-goal'),
-  slot('centre', ['center'], 13, 10, 'opponent-goal'),
-  slot('pivot', ['pivot'], 7.5, 10, 'opponent-goal')
+  slot('left-wing', ['wing'], 6, 1.5, 'opponent-goal'),
+  slot('right-wing', ['wing'], 6, 18.5, 'opponent-goal'),
+  slot('left-back', ['back'], 10.5, 5, 'opponent-goal'),
+  slot('right-back', ['back'], 10.5, 15, 'opponent-goal'),
+  slot('centre', ['center'], 12.5, 10, 'opponent-goal'),
+  slot('pivot', ['pivot'], 6.8, 10, 'opponent-goal')
 ];
 
 // Transition : juste apres une recuperation ou une remise en jeu, l equipe est

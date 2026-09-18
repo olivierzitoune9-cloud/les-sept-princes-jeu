@@ -48,10 +48,10 @@ Ordre impose : passe MOTEUR d abord, car UI et rendu en dependent. Validation : 
 
 Cet audit est un document de travail. Toute correction modifiant une regle structurante doit passer par 09 (decision) et 10 (registre) avant encodage.
 
-## Suivi — passe MOTEUR 2026-09-18 (E-001/E-002/E-003, cote moteur)
+## Suivi — passe MOTEUR 2026-09-18 (E-001/E-002/E-003, cote moteur) — CONCLUE
 
-- E-002 : le porteur avance ballon en main (`run` borne 3,5 m, `move` borne ballon suit), l elan alimente le tir en appui puis est consomme, cause `run-up momentum` tracee. Le commentaire « le porteur ne bouge jamais » est supprime de `possession.ts`, l elan retombe a la remise en jeu.
-- E-003 : `cross` (miroir), `move`, `block`, `mark`, `help` ne teleportent plus — helper `stepToward`, pas max 3,5 m. La decision reste immediate (assignation, pression), seul le corps suit par trajectoire.
+- E-002 : le porteur avance ballon en main (`run` borne 3,5 m, `move` borne ballon suit), l elan (`momentum`) alimente le tir en appui puis est consomme, cause `run-up momentum` tracee. L elan retombe a la remise en jeu (`installPossession`).
+- E-003 : `cross` (miroir), `move`, `block`, `mark`, `help` ne teleportent plus — helper `stepToward`, pas max 3,5 m. La decision reste immediate (assignation, pression), seul le corps suit par trajectoire. Forme d attaque par roles (`formation.ts` ATTACK : ailes larges 1,5/18,5, arrieres a 9-10 m, pivot appuye a 6,8 m).
 - E-001 : `defensiveIntents` expose mark/help au coach ; la fenetre defensive existe cote `app` (`openDecisionWindow`, onglet DEFENDRE).
-- Test ajoute : `bounds every repositioning step instead of teleporting` (30 tests moteur au total).
-- Reste : passe POSITIONNEMENT (formes par roles), passe RENDU (DA doc 04).
+- Tests : `bounds every repositioning step instead of teleporting` + `keeps a strict assignment alive while the block drifts` + `proposes coach defensive intents` (30 tests moteur au total).
+- Reste (hors passe MOTEUR) : passe POSITIONNEMENT complementaire (transition), passe RENDU (DA doc 04 §§2-30). Aucune regle structurante nouvelle hors D-010.
