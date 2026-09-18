@@ -36,6 +36,22 @@ export function shotProfile(type: string): ShotProfileDef {
   return { label: 'tir place', power: 1, wingBonus: 3, backBonus: 1, pivotBonus: 3, needsSpace: false };
 }
 
+// Tir de pivot : jeu au contact, pas jeu d'espace. Le pivot ne s'eleve pas
+// au-dessus du bloc (suspension inutile), il tombe, contourne, glisse sous
+// le bras. Au contact (defenseur a <= 1,5 m) : roucoulette et chabala
+// dominent ; decale ou seul : place a l'oppose et lob punissent le gardien
+// colle. (Docs 13 S48 Edgar, Saison 5 : roucoulette d'Edgar au contact.)
+export function pivotContactBonus(shotType: string, contactDistance: number): number {
+  const contact = contactDistance <= 1.5;
+  if (!contact) return 0;
+  if (shotType === 'roucoulette') return 8;
+  if (shotType === 'chabala') return 6;
+  if (shotType === 'placed') return 3;
+  if (shotType === 'jump') return -6;
+  if (shotType === 'standing') return -4;
+  return 0;
+}
+
 function distance(first: Vector2, second: Vector2): number {
   return Math.hypot(first.x - second.x, first.y - second.y);
 }
@@ -626,7 +642,13 @@ export function resolveAction(state: MatchState, action: ActionIntent, random = 
     // Un geste qui demande de l'espace (suspension, appui, puissance) sous
     // forte pression perd de sa valeur : il faut etre lance ou decale.
     const contestedMalus = profile.needsSpace ? Math.max(0, actor.pressure - 40) * 0.25 : 0;
-    const shootingPower = actor.shooting + profile.power + roleBonus + spaceBonus - context.effectiveDistance * 0.7 - actor.pressure * 0.3 + intentionModifier(action.intention) + momentumBonus - contestedMalus;
+    // Pivot au contact : son tir est un autre sport (tomber, contourner,
+    // glisser sous le bras), pas une suspension ratee.
+    const nearestFoe = Object.values(nextState.players)
+      .filter((player) => player.team !== actor.team && player.isOnCourt && player.role !== 'goalkeeper')
+      .reduce((best, player) => Math.min(best, distance(player.position, actor.position)), 99);
+    const pivotBonus = actor.role === 'pivot' ? pivotContactBonus(shotType, nearestFoe) : 0;
+    const shootingPower = actor.shooting + profile.power + roleBonus + pivotBonus + spaceBonus - context.effectiveDistance * 0.7 - actor.pressure * 0.3 + intentionModifier(action.intention) + momentumBonus - contestedMalus;
     const savePower = goalkeeper ? goalkeeper.goalkeeper + goalkeeper.anticipation * 0.35 : 0;
     // P2 — le duel tireur-gardien se joue sur la ZONE visee : le gardien lit
     // cote + hauteur (chooseGoalkeeperRead), bonus si lecture juste, malus si
@@ -669,7 +691,7 @@ export function resolveAction(state: MatchState, action: ActionIntent, random = 
       actorId: actor.id,
       result: goal ? 'goal' : 'save',
       causes: goal
-        ? [profile.label, actor.role === 'wing' ? 'wing angle managed' : actor.role === 'back' ? 'back range' : actor.role === 'pivot' ? 'pivot close range' : 'close range', beatenNearby ? 'alone after duel won' : openness > 0.5 ? 'open interval' : 'shot quality', momentum >= 40 ? 'run-up momentum' : 'timing', `zone ${shotZone.side}-${shotZone.height}`, ...retreatCause]
+        ? [profile.label, actor.role === 'wing' ? 'wing angle managed' : actor.role === 'back' ? 'back range' : actor.role === 'pivot' ? (nearestFoe <= 1.5 ? 'pivot contact finish' : 'pivot close range') : 'close range', beatenNearby ? 'alone after duel won' : openness > 0.5 ? 'open interval' : 'shot quality', momentum >= 40 ? 'run-up momentum' : 'timing', `zone ${shotZone.side}-${shotZone.height}`, ...retreatCause]
         : [action.contestedBy ? 'defensive block timing' : `goalkeeper read zone ${shotZone.side}-${shotZone.height}`, actor.role === 'wing' && shotType !== 'extension' && shotType !== 'roucoulette' ? 'closed angle' : 'pressure', 'shot distance', ...(momentum >= 40 ? ['run-up momentum faded'] : []), ...retreatCause]
     };
     if (goalkeeper) {

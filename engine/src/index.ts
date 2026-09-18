@@ -35,7 +35,7 @@ export type { PlayedAction, RestartKind, ShapeStep } from './possession.js';
 export { adaptDefense, defensivePressure, recommendedDefense } from './defense.js';
 export { chooseGoalkeeperRead, goalkeeperAdvantage, mentalSwing } from './goalkeeper.js';
 export { runSeedCampaign } from './validation.js';
-export { SHOOTING_RANGE, getSituation, resolveAction, simulatePilotSequence } from './engine.js';
+export { SHOOTING_RANGE, getSituation, pivotContactBonus, resolveAction, simulatePilotSequence } from './engine.js';
 export { callTimeout, changeSystem, setSevenPlayer, substitute } from './coaching.js';
 export { createMatchReport, simulateMatch, simulatePossession } from './simulation.js';
 export { SeededRandom } from './random.js';

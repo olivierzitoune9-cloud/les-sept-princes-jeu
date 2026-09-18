@@ -476,14 +476,33 @@ function computeEstimatedSuccess(intent: ActionIntent, state: MatchState): numbe
 
   if (intent.type === 'shoot') {
     const context = shotContext(actor.position, actor.team)
-    const profile = shotProfile(intent.shotType ?? (actor.role === 'wing' ? 'extension' : actor.role === 'back' ? 'jump' : 'placed'))
+    const shotType = intent.shotType ?? (actor.role === 'wing' ? 'extension' : actor.role === 'back' ? 'jump' : 'placed')
+    const profile = shotProfile(shotType)
     const roleBonus = actor.role === 'wing' ? profile.wingBonus : actor.role === 'back' ? profile.backBonus : actor.role === 'pivot' ? profile.pivotBonus : 1
     const momentum = actor.momentum ?? 0
-    const momentumBonus = momentum * (intent.shotType === 'placed' ? 0.12 : 0.06)
-    const shootingPower = actor.shooting + profile.power + roleBonus - context.effectiveDistance * 0.7 - actor.pressure * 0.3 + momentumBonus
+    const momentumBonus = momentum * (shotType === 'placed' ? 0.12 : 0.06)
+    // Estimation fidele au moteur (P2) : contact pivot + lecture gardien.
+    // Un pivot au contact en roucoulette n'estime plus comme une suspension.
+    let pivotEstimation = 0
+    if (actor.role === 'pivot') {
+      let nearest = 99
+      for (const p of Object.values(state.players)) {
+        if (p.team !== actor.team && p.isOnCourt && p.role !== 'goalkeeper') {
+          nearest = Math.min(nearest, Math.hypot(p.position.x - actor.position.x, p.position.y - actor.position.y))
+        }
+      }
+      if (nearest <= 1.5) {
+        if (shotType === 'roucoulette') pivotEstimation = 8
+        else if (shotType === 'chabala') pivotEstimation = 6
+        else if (shotType === 'placed') pivotEstimation = 3
+        else if (shotType === 'jump') pivotEstimation = -6
+        else if (shotType === 'standing') pivotEstimation = -4
+      }
+    }
     const opposingTeam = actor.team === 'nangis' ? 'lagny' : 'nangis'
     const gk = Object.values(state.players).find((p) => p.team === opposingTeam && p.role === 'goalkeeper')
     const savePower = gk ? gk.goalkeeper + gk.anticipation * 0.35 : 60
+    const shootingPower = actor.shooting + profile.power + roleBonus + pivotEstimation - context.effectiveDistance * 0.7 - actor.pressure * 0.3 + momentumBonus
     const prob = (shootingPower - savePower + 100) / 200
     return Math.max(18, Math.min(90, Math.round(prob * 100)))
   }
@@ -657,10 +676,10 @@ function buildShotOptions(playerId: string, state: MatchState): Action[] {
     ]
     : role === 'pivot'
       ? [
-        { name: 'Placé', description: 'À bout portant, à l’opposé', bonus: 6, shot: { shotType: 'placed', shotSide: 'far', shotHeight: 'low' } },
-        { name: 'Chabala', description: 'Sous le bras, au contact', bonus: 3, shot: { shotType: 'chabala', shotSide: 'near', shotHeight: 'low' } },
-        { name: 'Lob', description: 'Au-dessus du gardien collé', bonus: 1, shot: { shotType: 'lob', shotSide: 'center', shotHeight: 'high' } },
-        { name: 'Puissance', description: 'Enchaîner au contact', bonus: 2, shot: { shotType: 'power', shotSide: 'center', shotHeight: 'middle' } }
+        { name: 'Roucoulette', description: 'Contourner au contact — geste Edgar', bonus: 8, shot: { shotType: 'roucoulette', shotSide: 'near', shotHeight: 'low' } },
+        { name: 'Chabala', description: 'Sous le bras, au contact', bonus: 6, shot: { shotType: 'chabala', shotSide: 'near', shotHeight: 'low' } },
+        { name: 'Placé', description: 'À bout portant, à l’opposé', bonus: 3, shot: { shotType: 'placed', shotSide: 'far', shotHeight: 'low' } },
+        { name: 'Lob', description: 'Au-dessus du gardien collé', bonus: 1, shot: { shotType: 'lob', shotSide: 'center', shotHeight: 'high' } }
       ]
       : far
         ? [
@@ -676,8 +695,8 @@ function buildShotOptions(playerId: string, state: MatchState): Action[] {
           { name: 'Chabala', description: 'Feinte sous le bras', bonus: 0, shot: { shotType: 'chabala', shotSide: 'near', shotHeight: 'low' } }
         ]
   return variants.map((variant) => {
-    const intent = { type: 'shoot', actorId: playerId, ...variant.shot } as ActionIntent
-    const est = computeEstimatedSuccess(intent, state)
+    const variantIntent = { type: 'shoot', actorId: playerId, ...variant.shot } as ActionIntent
+    const est = computeEstimatedSuccess(variantIntent, state)
     const tier = qualityFromPercentage(est)
     return {
       id: `shot-${variant.shot.shotType}-${variant.shot.shotSide}-${variant.shot.shotHeight}`,
@@ -701,9 +720,10 @@ function buildShotOptions(playerId: string, state: MatchState): Action[] {
 
 // Actions proposees dans la fenetre de decision Nangis : celles du moteur,
 // dont les passes vers les coequipiers, plus les tirs parametres si dispo.
-// P1 (doc 18 §3.4) : 2 a 4 options pertinentes, pas un catalogue. On garde
-// les mieux classees par estimation moteur : le coach lit vite et choisit.
-const OFFENSIVE_WINDOW_MAX = 4
+// Le moteur propose TOUT (gates geometriques P0 : duel au contact, tir en
+// portee...). L'interface ne retire RIEN : tenter hors condition se punit
+// tout seul par la resolution (gardien qui lit, bloc qui monte, %). Les
+// estimations restent affichees pour lire le risque, jamais pour interdire.
 const refreshActions = useCallback((state: MatchState, focusId?: string | null) => {
   const holder = state.players[state.ball.holderId]
   if (holder && holder.team === 'nangis') {
@@ -718,16 +738,7 @@ const refreshActions = useCallback((state: MatchState, focusId?: string | null) 
     if (situation.availableActions.some((action) => action.type === 'shoot')) {
       buildShotOptions(holder.id, state).forEach((shot) => unique.set(shot.id, shot))
     }
-    // P1 : fenetre courte mais le tir ne doit JAMAIS etre evince (sinon jeu
-    // injouable : 4 passes > tir = plus de tir propose). Le tir moteur passe
-    // en premier, puis les 3 meilleures autres options.
-    const shootActions = Array.from(unique.values()).filter((a) => a.intent.type === 'shoot')
-    const otherActions = Array.from(unique.values())
-      .filter((a) => a.intent.type !== 'shoot')
-      .sort((a, b) => b.estimatedSuccess - a.estimatedSuccess)
-      .slice(0, Math.max(0, OFFENSIVE_WINDOW_MAX - shootActions.length))
-    const list = [...shootActions, ...otherActions]
-      .sort((a, b) => (a.intent.type === 'shoot' ? -1 : 0) - (b.intent.type === 'shoot' ? -1 : 0))
+    const list = Array.from(unique.values())
     setAvailableActions(list)
     actionsRef.current = list
     return

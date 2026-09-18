@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createPilotMatch } from './match.js';
-import { SHOOTING_RANGE, contestAction, defensiveIntents, getSituation, resolveAction, shotProfile, simulatePilotSequence } from './engine.js';
+import { SHOOTING_RANGE, contestAction, defensiveIntents, getSituation, pivotContactBonus, resolveAction, shotProfile, simulatePilotSequence } from './engine.js';
 import { chooseNextAction } from './ai.js';
 import { callTimeout, changeSystem, setSevenPlayer, substitute } from './coaching.js';
 import { createMatchReport, simulateMatch, simulatePossession } from './simulation.js';
@@ -531,7 +531,23 @@ describe('placement, defense et terrain', () => {
     expect(alone.read).toBe('wait');
   });
 
-  it('P2 : le tir reste propose meme quand 4 passes sont meilleures (fenetre P1)', () => {
+  it('P2 : tir de pivot au contact — roucoulette et chabala dominent', () => {
+    expect(pivotContactBonus('roucoulette', 1)).toBe(8);
+    expect(pivotContactBonus('chabala', 1)).toBe(6);
+    expect(pivotContactBonus('jump', 1)).toBe(-6);
+    expect(pivotContactBonus('roucoulette', 5)).toBe(0);
+    // Edgar au contact en roucoulette : le tir existe et trace sa cause.
+    const state = createPilotMatch(44);
+    state.players.edgar!.position = { x: 33, y: 10 };
+    state.players.karim!.position = { x: 32.2, y: 10 };
+    state.ball.holderId = 'edgar';
+    state.ball.position = { x: 33, y: 10 };
+    const shot = resolveAction(state, { type: 'shoot', actorId: 'edgar', shotType: 'roucoulette', shotSide: 'near', shotHeight: 'low' }, new SeededRandom(7));
+    expect(['goal', 'save']).toContain(shot.event.result);
+    expect(shot.event.causes.some((c) => c.includes('pivot'))).toBe(true);
+  });
+
+  it('P2 : le moteur propose le tir des que la portee le permet (pas de filtre UI)', () => {
     const state = createPilotMatch(44);
     const situation = getSituation(state);
     expect(situation.availableActions.some((a) => a.type === 'shoot')).toBe(true);
