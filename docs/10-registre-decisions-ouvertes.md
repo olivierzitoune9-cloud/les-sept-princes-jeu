@@ -64,7 +64,7 @@ Toute decision fermee doit etre ajoutee a `09-historique-decisions.md` avant d e
 
 ## O-011 - Trace pre-decision des trajectoires (style Inazuma Eleven)
 
-- Statut : preuve P1 en cours (recherche 2026-09-18, cf D-015)
+- Statut : tranchée par D-019 (la volée planifiée réalise ce tracé à l'échelle du 6c6 ; le reste de la question rejoint O-013)
 - Question : faut-il tracer les trajectoires voulues avant resolution (stylet Inazuma DS/3DS : chemins dessines, ordres passes/tirs/courses, duels tactiques elementaires) plutot que de les subir apres ?
 - Contrainte : licite (lignes et fleches abstraites seulement), moteur seul decide, l'interface ne fait que montrer l'intention.
 - Test : chaque option de la fenetre affiche sa trajectoire pre-decision ; le coach choisit en voyant ou ca va.
@@ -83,11 +83,17 @@ Toute decision fermee doit etre ajoutee a `09-historique-decisions.md` avant d e
 - Contrainte : le moteur de simulation reste portable ; la decision ne bloque pas la refonte.
 - Test : la preuve de boucle joue dans le stack actuel ; la migration n'est envisagee que si le feel y est insuffisant.
 
-## O-012 - Câblage UI de la boucle de tour D-018
+## O-012 - Éditeur de flèches de la volée (ex-boucle de tour D-018, périmé)
 
-- Statut : ouverte (moteur pret, interface a poser)
-- Question : comment l'app consomme `resolveTurn` — un ecran de choix simultane (attaque voit ses actions, defense voit ses 6 ordres, les deux cartes se resignent puis resolution), ou le choix defense d'abord masque puis attaque ?
-- Contrainte : pas de reaction (le choix defense doit etre pose sans connaitre l'action attaque) ; initiative affichee avant resolution ; une seule fenetre a la fois.
-- Test : un 1c1 Aaron-Mael a 10 m du but se joue en trois clics lisibles (action, ordre, resolution causee).
+- Statut : périmé et remplacé par O-013 (D-019 : la boucle D-018 n'est plus l'interface, l'éditeur de flèches de la volée est le chantier UI V0 en session dédiée)
+- Question d'origine : comment l'app consommait `resolveTurn`.
+- Contrainte : inchangée (pas de réaction, une seule fenêtre à la fois) et reportée sur la volée : plans verrouillés en aveugle, puis simulation, jamais de choix défensif informé du plan adverse.
+
+## O-013 - Calibrage de la volée planifiée (D-019)
+
+- Statut : ouverte (spec 19, phases V0 et suivantes)
+- Question : quels calibrages exacts pour la volée (durée des volées en transition, budget d'attention : 3 majeures + 2 mineures ou budget pondéré, nombre de conditionnels au-delà du porteur et du pivot, rythme d'enchaînement des volées sur un match complet de 2 fois 10 minutes) ?
+- Contrainte : le joueur ne devient jamais programmeur de chorégraphie ; une flèche = une intention continue ; les possessions interminables sont coupées par la pression du passif, jamais par un compteur.
+- Test : une possession typique tient en 5 à 9 volées lisibles ; les trois propriétés du sandbox (provoquer une ouverture, fermer sans suivre le ballon, comprendre après coup) tiennent sur 100 possessions seedées.
 
 

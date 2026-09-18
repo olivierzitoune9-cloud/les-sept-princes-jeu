@@ -33,6 +33,32 @@ export type { DriftOptions, TeamShape } from './formation.js';
 export { installPossession, playAction, stepShapes } from './possession.js';
 export type { PlayedAction, RestartKind, ShapeStep } from './possession.js';
 // Systeme de tour (D-018) : manches de decisions opposees a partir de 12 m.
+// Remplace comme boucle principale par la vollee planifiee (D-019).
+export {
+  DEFAULT_HALF_SECONDS,
+  HALF_COUNT,
+  MAX_CONDITIONALS,
+  MAX_MAJOR_ORDERS,
+  MAX_MINOR_ORDERS,
+  MINOR_INTENTS,
+  chooseVolleyDefense,
+  matchLengthSeconds,
+  resolveVolley,
+  validateVolleyPlan
+} from './volley.js';
+export type {
+  AttackVolleyIntent,
+  DefenseOrder,
+  DefensePlan,
+  DefenseVolleyIntent,
+  VolleyConditional,
+  VolleyOrder,
+  VolleyPlan,
+  VolleyResult,
+  VolleyTrigger
+} from './volley.js';
+export { locomotionSpeed, observeDynamicGaps } from './spatial.js';
+export type { GapObservation } from './spatial.js';
 export {
   DEFENSE_TURN_ORDERS,
   TURN_ENTRY_DISTANCE,

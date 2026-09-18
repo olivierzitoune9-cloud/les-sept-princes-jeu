@@ -1,4 +1,4 @@
-import type { MatchState, TeamId, Vector2 } from './types.js';
+import type { MatchState, PlayerState, TeamId, Vector2 } from './types.js';
 
 export type TacticalZone = 'wing-left' | 'back-left' | 'half-left' | 'center' | 'half-right' | 'back-right' | 'wing-right' | 'pivot';
 
@@ -100,3 +100,70 @@ export function passLaneContest(state: MatchState, passingTeam: TeamId, from: Ve
     ...(best.defenderId ? { defenderId: best.defenderId } : {})
   };
 }
+
+// Locomotion (D-019) : la vitesse effective depend de l'acceleration brute et
+// de la fatigue. C'est la seule source de verite des temps d'acces : le
+// volley.ts et les fenetres ne recalculent jamais une vitesse a part.
+export function locomotionSpeed(player: PlayerState): number {
+  const base = 3.2 + (player.acceleration / 100) * 2.3;
+  const fatigue = 0.55 + (player.energy / 100) * 0.45;
+  return base * fatigue;
+}
+
+export interface GapObservation {
+  id: string;
+  defenders: [string, string];
+  // Milieu de l'intervalle entre les deux defenseurs adjacents.
+  point: Vector2;
+  // Largeur de l'intervalle, en metres.
+  width: number;
+  // Temps (secondes) pour que le meilleur attaquant atteigne le point.
+  attackerAccess: number;
+  // Temps (secondes) pour que le defenseur le plus proche referme.
+  defenderAccess: number;
+  // Fenetre = fermeture defenseur moins acces attaquant. Positive : l'attaque
+  // arrive avant. C'est la grandeur fondamentale du jeu (spec 19 §5).
+  window: number;
+  exploitable: boolean;
+}
+
+// Intervalles dynamiques (D-019, spec 19 §5) : les gaps sont calcules entre
+// PAIRES de defenseurs adjacents reeles (tries lateralement), pas entre zones
+// nommees fixes. La fenetre est temporelle, pas seulement largeur.
+export function observeDynamicGaps(state: MatchState, attackingTeam: TeamId): GapObservation[] {
+  const defenders = Object.values(state.players)
+    .filter((player) => player.team !== attackingTeam && player.isOnCourt && player.role !== 'goalkeeper')
+    .sort((first, second) => first.position.y - second.position.y);
+  const attackers = Object.values(state.players)
+    .filter((player) => player.team === attackingTeam && player.isOnCourt && player.role !== 'goalkeeper');
+  const gaps: GapObservation[] = [];
+  for (let index = 0; index < defenders.length - 1; index += 1) {
+    const left = defenders[index]!;
+    const right = defenders[index + 1]!;
+    const point = {
+      x: (left.position.x + right.position.x) / 2,
+      y: (left.position.y + right.position.y) / 2
+    };
+    const width = Math.hypot(left.position.x - right.position.x, left.position.y - right.position.y);
+    const attackerAccess = Math.min(
+      ...attackers.map((attacker) => Math.hypot(attacker.position.x - point.x, attacker.position.y - point.y) / locomotionSpeed(attacker) + 0.35)
+    );
+    const defenderAccess = Math.min(
+      Math.hypot(left.position.x - point.x, left.position.y - point.y) / locomotionSpeed(left) + 0.25,
+      Math.hypot(right.position.x - point.x, right.position.y - point.y) / locomotionSpeed(right) + 0.25
+    );
+    const window = defenderAccess - attackerAccess;
+    gaps.push({
+      id: `gap-${left.id}-${right.id}`,
+      defenders: [left.id, right.id],
+      point,
+      width,
+      attackerAccess,
+      defenderAccess,
+      window,
+      exploitable: window >= 0.25 && width >= 1.6
+    });
+  }
+  return gaps;
+}
+

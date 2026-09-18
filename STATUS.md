@@ -1,6 +1,6 @@
 # Status du projet — 18 septembre 2026 (session refonte interface)
 
-> **Mise à jour session 4 (soir)** : passe PILOTE-SIM 2 (D-013). La défense appartient au coach de Nangis — la fenêtre de contestation ne s'ouvre plus que quand Nangis défend (plus jamais pour choisir la défense adverse). Lagny attaque en continu (plus de pause forcée ni de bouton bloquant) ; le coach défend par les fenêtres de contest (duel/tir/dribble/passe adverse installée dans sa moitié) et en cliquant un défenseur. Les options défensives sont gagées par la proximité (≤ 6 m ; presser ≤ 4 m ; repli sinon). L'espace est enfin visible : vrais intervalles du moteur dans le panneau latéral, halos discrets sur le terrain, passes décrites par l'intervalle devant le receveur. Moteur 37/37 tests, typecheck app 0 erreur. Détails : `HISTORIQUE_SESSION.md` session 4, `docs/09` D-013, `docs/17` E-011→E-014.
+> **Mise à jour session 5 (soir)** : D-019, la volée planifiée remplace la boucle D-018 (spec `docs/19-spec-vollee.md`, O-013 ouverte, O-011 tranchée, O-012 périmée). Noyau moteur V0 livré : `engine/src/volley.ts` (plans verrouillés en aveugle, tick 0,2 s, arrêt anticipé, fenêtre temporelle, horloge FIFA 2 × 10 min sans vitesses), gaps dynamiques dans `spatial.ts`, 11/11 tests volley verts, tsc 0 erreur. Suite `engine.test.ts` : 43/47, les 4 échecs sont préexistants (prouvés par fichiers de session précédente, aucune régression). `app/` non touché : éditeur de flèches en session dédiée.
 
 ## ⚡ Résumé en 10 lignes
 

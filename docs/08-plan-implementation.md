@@ -96,3 +96,15 @@ Le rapport doit distinguer :
 Les documents sont prets lorsque le code peut commencer sans inventer de regle structurante : les invariants sont connus, les variantes sont ordonnees, les interdits sont explicites et chaque jalon possede un test de sortie.
 
 La version 0.1 est le premier objectif d implementation. Les idees des jalons 0.3, 0.4 et 1.0 restent dans le plan et ne doivent pas etre simulees par des placeholders trompeurs.
+
+## 10. Refonte volée (D-019, 2026-09-18)
+
+Le format D-018 (manches 1c1 à la Pokemon) est remplacé par la volée planifiée (spec 19). Jalons remplacés en conséquence :
+
+- V0 : sandbox preuve de noyau (6-0, intents spatiaux, gaps dynamiques, fenêtres, verrouillage aveugle, 100 possessions seedées, 3 propriétés de sortie).
+- V1 : pivot, écran, croisé, renversement, ruses comme propriétés de duel, doctrines défensives.
+- V2 : autres systèmes défensifs comme initialisations du champ de contrôle, test architectural 6-0 contre 2-4.
+- V4 : match complet (remplacements, temps morts, jeu à 7, mental, passif, rapport), calibré sur Nangis-Lagny.
+
+Horloge : pas de vitesses x1/x2/x4 ; durée configurable à la FIFA, défaut 2 fois 10 minutes simulées.
+

@@ -138,6 +138,15 @@ Ce fichier trace les decisions qui structurent le projet. Une nouvelle decision 
 - Raison : une fenetre defensive qui ne s'ouvre jamais ou s'ouvre en douce vaut zero ; une option defensive interdite par l'interface au lieu d'etre punie par le moteur, c'est le meme bug que le top-4 offensif.
 - Impact : `useMatchEngine.ts` (fenetre synchrone, DEFENSIVE_SLOWDOWN_MS supprime), `engine.ts` (registre complet), `engine.test.ts` (test registre).
 
+## D-019 - Format volée planifiée : le tour par tour D-018 est remplacé, horloge a la FIFA, pas de vitesses
+
+- Date : 2026-09-18
+- Statut : adoptee (retour joueur : la boucle D-018 est « nul » ; spec complete dans `docs/19-spec-vollee.md`, fondée sur l'analyse joueur, le contre-analyse Frozen Cortex et le doc système volée)
+- Decision : l'unite de jeu devient la volee planifiee. Lecture a temps fige, planification attaque (3 intentions majeures + 2 mineures, 1 conditionnel au plus) et doctrine defensive verrouillees EN AVEUGLE, puis simulation a tick de 3 a 5 s (6 s en transition), arret anticipe sur evenement majeur, nouvel etat. La grandeur fondamentale est la FENETRE temporelle (temps de fermeture defenseur moins temps d'acces attaquant). L'initiative du D-018 devient un avantage temporel local : plus de +35/-30 global, un orderScale 1,35/0,7/1,0 calcule au moment de la collision geometrique. Les jauges (fixation, fissure, desequilibre, ardeur, fenetre) sont des observables, jamais des mecanismes. Le systeme defensif est un champ de controle ; les systemes (6-0, 5-1, 3-2-1, 2-4) sont des initialisations, jamais des scripts. Le duel, le passement, le bloc naissent de la geometrie, jamais d'un menu.
+- Horloge : suppression definitive des vitesses x1/x2/x4 (retour joueur : elles sont le propre de FM, caduque ici). Le temps de match n'avance que par volees, la planification est hors temps de match. Duree configurable a la FIFA (minutes par mi-temps au choix), defaut deux mi-temps de 10 minutes simulees.
+- Raison : le 1c1 Pokemon reduisait le 6c6 a un pierre-feuille-ciseaux et l'espace disparaissait du jeu ; le continu FM faisait du joueur un spectateur. L'atome reel du hand est la chaine d'avantages (fixer, forcer la reponse, exploiter la reponse), et le seul format qui l'exprime est le plan-then-resolve simultane a l'echelle collective, ou l'objet a anticiper n'est pas la trajectoire d'un joueur mais la deformation du bloc.
+- Impact : `engine/src/volley.ts` (nouveau : resolveVolley, plans, horloge de match), `engine/src/spatial.ts` (observeDynamicGaps : intervalles dynamiques entre defenseurs adjacents + fenetres temporelles ; locomotionSpeed), `engine/src/index.ts` (exports). `engine/src/turn.ts` reste en place mais n'est plus la boucle principale ; le cablage app de la volee suit en session dedicate (editeur de fleches). Route : V0 sandbox 6-0, V1 ruses, V2 autres systemes, V4 match complet (spec 19 §9).
+
 ## D-018 - Tour par tour a la Pokemon : decision contre decision a partir de 12 m
 
 - Date : 2026-09-18

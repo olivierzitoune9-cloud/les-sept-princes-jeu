@@ -107,9 +107,37 @@ Retour du coach : en phase offensive, l'écran lui demande de choisir la défens
 - D-013 inscrite dans `09`, suivi E-011→E-014 dans `17`. HISTORIQUE_SESSION et STATUS tenus.
 - Limites assumées : la fenêtre de contestation attend le choix (pas d'auto-résolution au timeout) ; « SOLUTIONS DISPONIBLES » du panneau honnête mais pas encore calculée.
 
+## Session 5 — 18 septembre 2026 (soir) : D-019, noyau volée V0 côté moteur
+
+### 1. Décisions verrouillées
+
+- **D-019** (`docs/09`) : la volée planifiée remplace la boucle D-018. Plans verrouillés en aveugle, simulation 3 à 5 s, fenêtre temporelle comme grandeur fondamentale, initiative = avantage temporel local (plus de +35/-30 global), jauges = observables jamais mécanismes, systèmes défensifs = initialisations du champ de contrôle, horloge FIFA (2 × 10 min par défaut, aucune vitesse x1/x2/x4, le temps n'avance que par volées).
+- Spec complète `docs/19-spec-vollee.md` (10 sections) ; jalon V0→V4 ajouté dans `docs/08` §10 ; **O-013** ouverte (calibrage : durées, budget d'attention, conditionnels, rythme sur match complet) ; **O-011** tranchée (tracé pré-décision = éditeur de flèches de la volée) ; **O-012** périmée et remplacée par O-013.
+
+### 2. Code moteur (session moteur seule, éditeur de flèches en session dédiée)
+
+- `engine/src/volley.ts` (nouveau) : `resolveVolley` (tick 0,2 s, 5 s max, arrêt anticipé tir/but/interception), `validateVolleyPlan` (3 majeures + 2 mineures, 1 conditionnel max, passe/tir réservés au porteur), `chooseVolleyDefense` (doctrine compacte, jamais de lecture du plan offensif), `matchLengthSeconds` (1200 s par défaut), orderScale 1.35/0.7/1.0 calculé sur la fenêtre au moment de la collision, défenseur battu (`beatenUntil`) exclu du coulissement.
+- `engine/src/spatial.ts` : `observeDynamicGaps` (paires de défenseurs adjacents réels, fenêtre = fermeture − accès) + `locomotionSpeed` (seule source de vérité des temps d'accès) ; `observeIntervals` statique inchangé.
+- `engine/src/index.ts` : exports volley + gaps.
+- `engine/src/volley.test.ts` (nouveau, **11/11 verts**) : horloge FIFA sans vitesses, gaps dynamiques, déterminisme à seed identique, horloge qui avance de la durée de la volée, passe qui transfère le ballon, duel né de la géométrie, fixation dont la réponse (pressBall) ouvre plus large qu'un bloc immobile, paire visée qui se resserre sous contain, tir qui termine la volée en avance, budget d'intentions, passe/tir hors porteur refusés.
+- Le duel utilise `resolveAction` existant (tables, gardien par zones D-016, mémoire) : aucune règle réinventée.
+
+### 3. Validation constatée
+
+- `tsc --noEmit` : **0 erreur**.
+- `vitest run src/volley.test.ts` : **11/11, exit 0**.
+- Suite complète `engine.test.ts` : **43/47** — 4 échecs **préexistants à cette session** (prouvés par `sum.txt`/`tj.json`/`test-out.txt` de la session précédente : strict assignment, bloc figé sans déplacement, relance gardien/centre, tir en portée) ; aucun fichier source existant modifié par cette session (ajouts purs + exports), donc aucune régression introduite. Ces 4 échecs deviennent l'entrée de la prochaine consolidation moteur.
+- `app/` non touché : l'ancienne boucle reste branchée et jouable, la volée reste moteur pur en attendant l'éditeur de flèches.
+
+### 4. Prochaine étape proposée
+
+Session dédiée éditeur de flèches `app/` : tracé des intentions sur canvas, plans verrouillés, relecture des gaps/fenêtres en direct, branchement `resolveVolley` à la place de l'ancienne boucle. Avant ou après : passe de consolidation des 4 échecs `engine.test.ts` préexistants.
+
 ## Leçons de session
 
 1. Un déploiement rouge n'implique pas un bug de code : vérifier d'abord `git log origin/main -1`.
 2. Le retour utilisateur brutal (« injouable ») a plus de valeur qu'un statut optimiste : ne jamais déclarer « validé » sans preuve (doc 11).
 3. L'interface doit consommer le moteur, jamais recoder : toutes les nouveautés (tirs, défenses, remises en jeu) existaient déjà côté moteur ou s'y ajoutent.
 4. Terminal : une commande à la fois, redirection vers fichier temporaire, lecture du fichier.
+5. Contrer un échec de test par comparatif factuel avant de toucher au code : ici `sum.txt`/`tj.json` prouvent les 4 échecs antérieurs à la session, le diff git prouve l'absence de régression.
+6. Un test qui affirme le contraire du hand (fermeture globale d'un bloc qui coulisse) doit être reformulé en propriété locale mesurable, pas assoupli : la paire visée qui se resserre sous contain vaut mieux qu'une fenêtre max globale trompeuse.
