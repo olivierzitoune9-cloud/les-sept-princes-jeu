@@ -1,9 +1,9 @@
 import type { MatchState, TeamId } from './types.js';
 
-export type ShotType = 'placed' | 'power' | 'lob' | 'roucoulette' | 'chabala';
+export type ShotType = 'placed' | 'power' | 'lob' | 'roucoulette' | 'chabala' | 'jump' | 'standing' | 'extension';
 export type GoalkeeperRead = 'wait' | 'anticipate-high' | 'anticipate-low' | 'advance';
 
-export interface ShotProfile {
+export interface ShotAttempt {
   type: ShotType;
   side: 'near' | 'far' | 'center';
   height: 'high' | 'low' | 'middle';
@@ -20,7 +20,7 @@ function opponentOf(team: TeamId): TeamId {
   return team === 'nangis' ? 'lagny' : 'nangis';
 }
 
-export function chooseGoalkeeperRead(state: MatchState, goalkeeperTeam: TeamId, shooterId: string, shot: ShotProfile): GoalkeeperDecision {
+export function chooseGoalkeeperRead(state: MatchState, goalkeeperTeam: TeamId, shooterId: string, shot: ShotAttempt): GoalkeeperDecision {
   const goalkeeper = Object.values(state.players).find((player) => player.team === goalkeeperTeam && player.role === 'goalkeeper' && player.isOnCourt);
   const shooter = state.players[shooterId];
   if (!goalkeeper || !shooter) {
@@ -35,7 +35,7 @@ export function chooseGoalkeeperRead(state: MatchState, goalkeeperTeam: TeamId, 
   return { read: 'wait', confidence, reason: 'preserve reaction time' };
 }
 
-export function goalkeeperAdvantage(state: MatchState, goalkeeperTeam: TeamId, shooterId: string, shot: ShotProfile): number {
+export function goalkeeperAdvantage(state: MatchState, goalkeeperTeam: TeamId, shooterId: string, shot: ShotAttempt): number {
   const decision = chooseGoalkeeperRead(state, goalkeeperTeam, shooterId, shot);
   const goalkeeper = Object.values(state.players).find((player) => player.team === goalkeeperTeam && player.role === 'goalkeeper' && player.isOnCourt);
   if (!goalkeeper) return 0;

@@ -1,4 +1,4 @@
-import { getSituation } from './engine.js';
+import { getSituation, contestAction } from './engine.js';
 import { SeededRandom } from './random.js';
 import type { ActionIntent, MatchState, TeamId } from './types.js';
 
@@ -26,17 +26,17 @@ export function chooseNextAction(state: MatchState, team: TeamId, random: Seeded
   const fatiguePressure = holder.energy < 35;
 
   if (shoot && (actionCount >= 2 || fatiguePressure)) {
-    return { action: shoot, reason: fatiguePressure ? 'fatigue pushes a quick conclusion' : 'the situation has matured into a shot', confidence: fatiguePressure ? 0.62 : 0.58 };
+    return { action: contestAction(state, shoot), reason: fatiguePressure ? 'fatigue pushes a quick conclusion' : 'the situation has matured into a shot', confidence: fatiguePressure ? 0.62 : 0.58 };
   }
   if (duel && opponentSystem === '6-0' && holder.duel + holder.acceleration > 160 && random.chance(0.48)) {
-    return { action: duel, reason: 'attack the compact defensive block', confidence: 0.66 };
+    return { action: contestAction(state, duel), reason: 'attack the compact defensive block', confidence: 0.66 };
   }
   if (duel && interceptedPasses >= 2 && random.chance(0.32)) {
-    return { action: duel, reason: 'avoid a repeatedly closed passing lane', confidence: 0.71 };
+    return { action: contestAction(state, duel), reason: 'avoid a repeatedly closed passing lane', confidence: 0.71 };
   }
   const selectedPass = passes[Math.floor(random.next() * passes.length)];
   if (selectedPass) {
-    return { action: selectedPass, reason: holder.role === 'center' ? 'organize the next situation' : 'preserve the collective structure', confidence: 0.54 };
+    return { action: contestAction(state, selectedPass), reason: holder.role === 'center' ? 'organize the next situation' : 'preserve the collective structure', confidence: 0.54 };
   }
-  return shoot ? { action: shoot, reason: 'no safer continuation is available', confidence: 0.4 } : undefined;
+  return shoot ? { action: contestAction(state, shoot), reason: 'no safer continuation is available', confidence: 0.4 } : undefined;
 }

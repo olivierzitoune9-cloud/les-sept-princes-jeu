@@ -82,6 +82,20 @@ Ce fichier trace les decisions qui structurent le projet. Une nouvelle decision 
 - Raison : fermer les ecarts E-002 (tir-des) et E-003 (teleportations) mesures contre doc 01 §4-5 et doc 05 terrain continu ; rendre E-001 exploitable (marquage strict suivi par trajectoire).
 - Impact : `engine.ts` (`stepToward`, `run`, `move`, `shoot`, `defensiveIntents`), `possession.ts` (`installPossession`), `formation.ts` (ATTACK), `engine.test.ts` (3 tests). Aucun changement de perimetre hors moteur.
 
-## Regle de mise a jour
+## D-011 - Tir a distance effective, duel qui bat, contestation defensive
+
+- Date : 2026-09-18
+- Statut : adoptee (mandat pilote-sim : tir, defense, espace)
+- Decision : le tir utilise la distance effective de `court.ts` (`shotContext` : axial + penalite d'angle, l'aile paie son angle ferme) et 8 gestes (`jump`, `standing`, `extension`, `placed`, `power`, `lob`, `roucoulette`, `chabala`) avec bonus par poste ; le duel gagne bat le defenseur (`beatenUntil` +6 s, recul, pas de presse, decrochage ralenti dans `driftTeam`) ; le dribble decale sans battre ; toute action offensive duel/tir/dribble/passe traverse `contestAction` (defenseur non battu le plus proche : `press`/`contain`/`help`/`intercept`/`retreat`/`block-shot`/`none`) appliquee par l'IA, les sequences et `playAction`, et proposee au coach via la fenetre de contestation avant resolution ; `press`/`retreat`/`intercept` deviennent des decisions jouables ; le croise fait courir les deux partenaires vers les couloirs opposes.
+- Raison : fermer les ecarts E-006 (tir-des sans distance ni poste), E-007 (duel qui ne bat pas, pas de dribble), E-008/E-009 (defense sans reponse, pause unilaterale), E-010 (croise invisible) mesures contre docs 00 (anticipation gardien/bloc), 01 §4-5 et §29-35 (gestes, trajectoires, tirs), 03 §1 (reponses defenseur + gardien), 05 (passe-et-va, croises, pauses), 13 S44-01/S48-13 et 14 phases A/C.
+- Impact : `types.ts` (nouveaux `ActionType`, `beatenUntil`, `contestedBy`/`contestAction`, tirs etendus), `court.ts` (`shotAngle`, `shotContext`), `engine.ts` (`SHOT_PROFILES`, duel/dribble/tir contestes, `press`/`retreat`/`intercept`, `contestAction`, `defensiveIntents` etendus), `formation.ts` (battu decroche, jamais presseur), `possession.ts`/`sequence.ts`/`ai.ts` (contestation systematique), `goalkeeper.ts` (`ShotAttempt`), `engine.test.ts` (5 tests), `useMatchEngine.ts` (estimations alignees, tirs par poste, fenetre de contestation), `App.tsx` (barre de contestation), `ActionDock.tsx` (dribble + defense complete).
+
+## D-012 - Consolidation pilote-sim : croise geometrique, angle aile durci, traces de repli
+
+- Date : 2026-09-18
+- Statut : adoptee (suite D-011, apres suite de tests verdee)
+- Decision : le croise echange vraiment les couloirs (chaque coureur vise le couloir actuel de l'autre, convergence sur l'axe x partage, pas bornes 3,5 m) au lieu d'un miroir abstrait ; la penalite d'angle du tir passe de (3 + 9*closeness) a (4 + 10*closeness) pour rendre l'aile proche injouable hors extension/roucoulette ; le tir trace `retreat conceded` dans ses causes quand le defenseur a replie, et `run-up momentum faded` sur un echec malgre l'elan ; `PendingContest` deplacee au niveau module dans `useMatchEngine.ts` (elle etait declaree a l'interieur du hook, erreur de compilation).
+- Raison : fiabiliser D-011 apres la suite vitest : 5 echecs (croise mono-coureur, aile encore a portee, causes de repli absentes, interface mal placee) fermes.
+- Impact : `engine.ts` (geometrie du croise, causes du tir), `court.ts` (`shotContext`), `useMatchEngine.ts` (deplacement `PendingContest`), aucun changement de regle hors D-011.
 
 Ajouter une entree avant toute modification de perimetre, de source, de regle de simulation ou de contrainte licite. Indiquer le document affecte et le test qui doit changer.

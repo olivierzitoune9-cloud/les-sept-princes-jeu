@@ -56,6 +56,35 @@ Reproches : trop lent ; pause/reprise mal faite ; pas de possession ; attaque/d�
 - Phase C (20 parties, 100 seeds) puis Phase D (calibration chapitres 44-48).
 - Exposer `mark`/`help` au coach pendant la possession adverse.
 - Hygiène déploiement : versionner les lockfiles, supprimer le `vercel.json` racine inerte.
+## Session 3 — 18 septembre 2026 (soir) : passe PILOTE-SIM — tir, duel, défense, espace
+
+### 1. Mandat
+Retour du coach : tirs trop risqués et sans distance, pas de variété (pas de tir en extension), aucune différence ailier/arrière/pivot, duel gagné qui ne bat personne, pas de dribble, défense sans réaction, pause décisionnelle unilatérale (on ne peut pas défendre quand l'adversaire choisit), croisé invisible et sans effet. Consigne : revenir aux documents fondateurs, section par section.
+
+### 2. Balayage des documents fondateurs
+- Relecture complète de `00` (anticipation gardien/bloc), `01` §4-5 (gestes, trajectoires) et §29-35 (tirs), `03` §1 (réponses défenseur), `05` (pauses, passe-et-va, croisés), `13` S44-01/S48-13, `14` phases A/C, `15`.
+- Confrontation au code réel (`engine.ts`, `court.ts`, `formation.ts`, `possession.ts`) : cinq écarts nommés E-006 à E-010 dans `17`.
+
+### 3. Extension moteur (D-011)
+- **E-006 tir** : distance *effective* = axiale + pénalité d'angle (`shotContext`), 8 gestes (`SHOT_PROFILES`) avec bonus par poste, espace conquis (défenseur battu +12, ouverture +10), tirs proposés selon le poste.
+- **E-007 duel/dribble** : duel gagné = défenseur battu (`beatenUntil` +6 s, recul, jamais presseur, ne conteste plus) ; `dribble` distinct (décale, ne bat personne).
+- **E-008 défense** : `press`/`retreat`/`intercept` jouables et proposés (`defensiveIntents`).
+- **E-009 pause** : `contestAction` systématique (IA, `playAction`, séquences) + fenêtre de contestation côté app : le coach choisit la réponse du défenseur le plus proche avant résolution.
+- **E-010 croisé** : les deux coureurs échangent leurs couloirs (pas bornés 3,5 m), trajectoire tracée « tirer ou passer derrière ».
+
+### 4. Consolidation (D-012) — 5 échecs de tests fermés
+- Croisé : géométrie réelle (chacun vise le couloir actuel de l'autre, convergence sur l'axe x partagé).
+- Aile : pénalité d'angle durcie (4 + 10·closeness) — l'aile proche sort de portée hors extension/roucoulette.
+- Causes : `retreat conceded` et `run-up momentum faded` tracées sur le tir.
+- `PendingContest` remontée au niveau module dans `useMatchEngine.ts` (déclarée dans le hook = erreur TS).
+
+### 5. Validation
+- Build moteur exit 0 ; **36/36 tests vitest** ; typecheck app 0 erreur.
+- Décisions D-011 et D-012 inscrites dans `09`, suivi E-006→E-010 mis à jour dans `17`.
+- Contrôle licite inchangé : ronds, numéros, texte, trajectoires ; aucune représentation animée.
+
+### Leçon de session
+5. Un lot d'édits étalé (croisé, causes, interface) doit être revalidé par la suite complète *avant* d'être déclaré clos : 5 échecs ont survécu au commit logique, fermés par une passe de consolidation dédiée (D-012).
 
 ## Leçons de session
 

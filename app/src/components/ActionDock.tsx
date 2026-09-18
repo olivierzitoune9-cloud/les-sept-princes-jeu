@@ -71,9 +71,9 @@ const ActionDock: React.FC<ActionDockProps> = ({
     actions.forEach((act) => {
       const type = act.intent.type
       if (type === 'pass') groups.pass.push(act)
-      else if (type === 'duel') groups.duel.push(act)
+      else if (type === 'duel' || type === 'dribble') groups.duel.push(act)
       else if (type === 'fix') groups.fix.push(act)
-      else if (type === 'mark' || type === 'help') groups.defend.push(act)
+      else if (type === 'mark' || type === 'help' || type === 'press' || type === 'retreat' || type === 'intercept') groups.defend.push(act)
       else if (type === 'run' || type === 'cross') groups.move.push(act)
       else if (type === 'shoot') groups.shoot.push(act)
     })

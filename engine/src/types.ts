@@ -3,7 +3,7 @@ import type { IntervalObservation } from './spatial.js';
 export type TeamId = 'nangis' | 'lagny';
 export type PlayerRole = 'goalkeeper' | 'wing' | 'back' | 'center' | 'pivot';
 export type DefensiveSystem = '6-0' | '1-5' | '1-2-3' | 'hybrid-1-2-3';
-export type ActionType = 'pass' | 'duel' | 'shoot' | 'move' | 'run' | 'fix' | 'block' | 'cross' | 'mark' | 'help';
+export type ActionType = 'pass' | 'duel' | 'dribble' | 'shoot' | 'move' | 'run' | 'fix' | 'block' | 'cross' | 'mark' | 'help' | 'press' | 'retreat' | 'intercept';
 export type ActionTiming = 'immediate' | 'after-pass' | 'after-fixation' | 'after-block' | 'after-movement' | 'after-side-change';
 export type ActionIntention = 'secure' | 'hidden' | 'attract' | 'create-space' | 'attack-inside' | 'attack-outside' | 'protect' | 'accelerate' | 'temporize' | 'anticipate';
 
@@ -20,6 +20,10 @@ export interface PlayerState {
   position: Vector2;
   energy: number;
   momentum?: number;
+  // Duel gagne : le defenseur est battu jusqu'a ce temps (secondes match).
+  // Tant que timeSeconds < beatenUntil, il ne presse plus et coulisse ralenti.
+  // C'est ce qui rend l'espace conquis visible et decisif (doc 01 §4, doc 12).
+  beatenUntil?: number;
   pressure: number;
   confidence: number;
   passing: number;
@@ -92,7 +96,13 @@ export interface ActionIntent {
   targetPosition?: Vector2;
   intention?: ActionIntention;
   timing?: ActionTiming;
-  shotType?: 'placed' | 'power' | 'lob' | 'roucoulette' | 'chabala';
+  // Reponse defensive annoncee par le coach avant resolution (doc 00 : si
+  // l'adversaire a anticipe avec gardien ou bloc au bon moment, c'est bon).
+  // Les passes moteur (AI, simulation, playAction) la remplissent quand le
+  // defenseur le plus proche conteste ; l'interface la remplit via contestAction.
+  contestedBy?: string;
+  contestAction?: 'press' | 'contain' | 'help' | 'intercept' | 'retreat' | 'block-shot' | 'none';
+  shotType?: 'placed' | 'power' | 'lob' | 'roucoulette' | 'chabala' | 'jump' | 'standing' | 'extension';
   shotSide?: 'near' | 'far' | 'center';
   shotHeight?: 'high' | 'low' | 'middle';
   // Qualifie la course du porteur pour l interface (doc 01 §4).

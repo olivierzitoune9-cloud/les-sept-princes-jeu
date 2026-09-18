@@ -195,15 +195,22 @@ export function driftTeam(state: MatchState, team: TeamId, shape: TeamShape, opt
   if (options.press && holder) {
     // Le bloc ne sort pas de sa zone : la pression ne commence que quand le
     // ballon entre dans les 16 m du but defendu. Sinon, on tient le bloc.
+    // Un battu ne presse jamais : le second rideau doit prendre le relais.
     const holderDistance = distance(holder.position, { x: defendedGoalX(team), y: 10 });
     if (holderDistance <= 16) {
       const pressTarget = holder.position;
-      const presser = onCourtPlayers(state, team).sort(
+      const ordered = onCourtPlayers(state, team)
+        .filter((player) => (player.beatenUntil ?? 0) <= state.timeSeconds)
+        .sort(
         (first, second) => distance(first.position, pressTarget) - distance(second.position, pressTarget)
-      )[0];
+      );
+      const presser = ordered.length > 0 ? ordered[0] : undefined;
       if (presser) {
         // Le defenseur se place cote but, jamais sur le porteur.
-        targets[presser.id] = { x: pressTarget.x + attackingDirection(team) * 1.4, y: pressTarget.y };
+        const slot = targets[presser.id];
+        if (slot) {
+          targets[presser.id] = { x: pressTarget.x + attackingDirection(team) * 1.4, y: pressTarget.y };
+        }
       }
     }
   }
@@ -228,13 +235,18 @@ export function driftTeam(state: MatchState, team: TeamId, shape: TeamShape, opt
         y: Math.max(1.5, Math.min(COURT_WIDTH - 1.5, target.y + shift))
       };
     }
-    const remaining = distance(player.position, finalTarget);
+    // Battu : le defenseur ne revient pas dans le dos du porteur. Il decroche
+    // vers son but a moitie vitesse, ce qui ouvre l'intervalle (mandat pilote-sim).
+    const beaten = (player.beatenUntil ?? 0) > state.timeSeconds;
+    const remaining = distance(player.position, beaten ? { x: defendedGoalX(team) + attackingDirection(team) * 7, y: 10 } : finalTarget);
     if (remaining < 0.05) continue;
-    const step = Math.min(options.maxStep * (0.55 + player.energy / 220), remaining);
+    const speedFactor = beaten ? 0.5 : 1;
+    const step = Math.min(options.maxStep * (0.55 + player.energy / 220) * speedFactor, remaining);
+    const destination = beaten ? { x: defendedGoalX(team) + attackingDirection(team) * 7, y: 10 } : finalTarget;
     const ratio = step / remaining;
     player.position = {
-      x: player.position.x + (finalTarget.x - player.position.x) * ratio,
-      y: player.position.y + (finalTarget.y - player.position.y) * ratio
+      x: player.position.x + (destination.x - player.position.x) * ratio,
+      y: player.position.y + (destination.y - player.position.y) * ratio
     };
     player.energy = Math.max(0, player.energy - step * 0.22);
     moved += step;

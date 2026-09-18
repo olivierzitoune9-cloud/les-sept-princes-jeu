@@ -55,3 +55,13 @@ Cet audit est un document de travail. Toute correction modifiant une regle struc
 - E-001 : `defensiveIntents` expose mark/help au coach ; la fenetre defensive existe cote `app` (`openDecisionWindow`, onglet DEFENDRE).
 - Tests : `bounds every repositioning step instead of teleporting` + `keeps a strict assignment alive while the block drifts` + `proposes coach defensive intents` (30 tests moteur au total).
 - Reste (hors passe MOTEUR) : passe POSITIONNEMENT complementaire (transition), passe RENDU (DA doc 04 §§2-30). Aucune regle structurante nouvelle hors D-010.
+
+## Suivi — passe PILOTE-SIM 2026-09-18 (tir, duel, dribble, defense, pause) — CODEE, A VALIDER
+
+- E-006 tir : `shotContext` (distance + angle, `court.ts`), 8 gestes avec bonus par poste (`SHOT_PROFILES`), espace conquis (`beatenNearby` +12, ouverture +10 max), geste qui demande de l'espace penalise sous pression, reponse `block-shot`/`press`/`help`/`retreat`/`none` sur le tir. Tirs proposes par poste dans `getSituation` et `buildShotOptions`.
+- E-007 duel/dribble/espace : duel gagne = `beatenUntil` +6 s, recul, pression +12 au battu, avancee laterale vers l'intervalle ; le battu ne presse plus (`formation.ts` : decrochage ralenti, jamais presseur) et ne conteste plus (`contestAction`) ; `dribble` distinct (decale, +15 elan, ne bat pas).
+- E-008 defense : `press` (sortie +16 pression), `retreat` (repli, -8 pression), `intercept` (vol ou battu 5 s) jouables via `resolveAction` et proposes via `defensiveIntents`.
+- E-009 pause : `contestAction` systematique (IA, `playAction`, `sequence`) + fenetre de contestation cote `app` (`pendingContest` : coach choisit `press`/`contain`/`help`/`retreat`/`block-shot`/`intercept`/`none` du defenseur le plus proche avant duel/tir/dribble/passe, ou laisse l'IA defendre).
+- E-010 croise : les deux coureurs echange leurs couloirs — chacun vise le couloir actuel de l'autre en convergant sur l'axe x partage (pas bornes 3,5 m), trajectoire `cross` tracee avec label tirer-ou-passer-derriere.
+- Consolidation D-012 : penalite d'angle durcie (4 + 10*closeness) — l'aile proche sort de portee hors extension/roucoulette ; causes `retreat conceded` et `run-up momentum faded` tracees sur le tir ; `PendingContest` remontee au niveau module (erreur TS fermee).
+- Decision : D-011 puis D-012 adoptees dans `09`. Validation complete : build moteur OK, 36/36 tests vitest OK, typecheck app OK.

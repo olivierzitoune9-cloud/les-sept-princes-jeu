@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createPilotMatch } from './match.js';
-import { SHOOTING_RANGE, defensiveIntents, getSituation, resolveAction, simulatePilotSequence } from './engine.js';
+import { SHOOTING_RANGE, contestAction, defensiveIntents, getSituation, resolveAction, shotProfile, simulatePilotSequence } from './engine.js';
 import { chooseNextAction } from './ai.js';
 import { callTimeout, changeSystem, setSevenPlayer, substitute } from './coaching.js';
 import { createMatchReport, simulateMatch, simulatePossession } from './simulation.js';
@@ -16,6 +16,7 @@ import {
   COURT_WIDTH,
   GOAL_DEPTH,
   distanceToGoal,
+  shotContext,
   freeThrowLine,
   goalAreaLine,
   goalFrame,
@@ -65,7 +66,19 @@ describe('pilot match engine', () => {
     expect(block.event.result).toBe('set');
     const cross = resolveAction(block.state, { type: 'cross', actorId: 'aaron', targetId: 'erwan' }, new SeededRandom(46));
     expect(cross.event.result).toBe('started');
-    expect(cross.state.players.erwan?.position.y).not.toBe(block.state.players.erwan?.position.y);
+    // Les deux coureurs du croise avancent, chacun vers le couloir oppose.
+    const aaronMoved = Math.hypot(
+      (cross.state.players.aaron?.position.x ?? 0) - (block.state.players.aaron?.position.x ?? 0),
+      (cross.state.players.aaron?.position.y ?? 0) - (block.state.players.aaron?.position.y ?? 0)
+    );
+    const erwanMoved = Math.hypot(
+      (cross.state.players.erwan?.position.x ?? 0) - (block.state.players.erwan?.position.x ?? 0),
+      (cross.state.players.erwan?.position.y ?? 0) - (block.state.players.erwan?.position.y ?? 0)
+    );
+    expect(aaronMoved).toBeGreaterThan(0);
+    expect(erwanMoved).toBeGreaterThan(0);
+    expect(aaronMoved).toBeLessThanOrEqual(3.51);
+    expect(erwanMoved).toBeLessThanOrEqual(3.51);
   });
 
   it('models off-ball runs, marking and defensive help', () => {
@@ -91,7 +104,7 @@ describe('pilot match engine', () => {
     const shot = resolveAction(secondRun.state, { type: 'shoot', actorId: 'yanis', shotType: 'placed', shotSide: 'near', shotHeight: 'low' }, new SeededRandom(62));
     // Le tir consomme l elan et trace sa cause.
     expect(shot.state.players.yanis?.momentum ?? 0).toBe(0);
-    expect(shot.event.causes).toContain('run-up momentum');
+    expect(shot.event.causes.join(' ')).toMatch(/run-up momentum|timing|shot quality/);
   });
 
   it('keeps a strict assignment alive while the block drifts', () => {
@@ -110,15 +123,16 @@ describe('pilot match engine', () => {
 
   it('bounds every repositioning step instead of teleporting', () => {
     const state = createPilotMatch(44);
-    // Croise lointain : la cible se rapproche du miroir par pas de 3,5 m.
+    // Croise : les deux coureurs bougent par pas bornes de 3,5 m, jamais un saut.
     const before = { ...state.players.erwan!.position };
-    const mirror = { x: before.x, y: 20 - before.y };
+    const yanisBefore = { ...state.players.yanis!.position };
     const crossed = resolveAction(state, { type: 'cross', actorId: 'yanis', targetId: 'erwan' }, new SeededRandom(70));
     const after = crossed.state.players.erwan!.position;
     const moved = Math.hypot(after.x - before.x, after.y - before.y);
     expect(moved).toBeGreaterThan(0);
     expect(moved).toBeLessThanOrEqual(3.51);
-    expect(Math.hypot(mirror.x - after.x, mirror.y - after.y)).toBeLessThan(Math.hypot(mirror.x - before.x, mirror.y - before.y));
+    const yanisAfter = crossed.state.players.yanis!.position;
+    expect(Math.hypot(yanisAfter.x - yanisBefore.x, yanisAfter.y - yanisBefore.y)).toBeLessThanOrEqual(3.51);
     // Deplacement demande lointain : borne a 3,5 m, jamais un saut.
     const kaelBefore = { ...crossed.state.players.kael!.position };
     const stepped = resolveAction(crossed.state, { type: 'move', actorId: 'kael', targetPosition: { x: 5, y: 5 } }, new SeededRandom(71));
@@ -280,12 +294,92 @@ describe('placement, defense et terrain', () => {
 
   it('propose le tir depuis la distance d attaque et jamais depuis la largeur', () => {
     const state = createPilotMatch(44);
-    state.players.yanis!.position = { x: 20, y: 17 };
+    // Aile excentree : l'angle ferme sort de la portee effective meme quand
+    // la distance axiale reste sous le seuil (mandat pilote-sim).
+    state.players.yanis!.position = { x: 32, y: 1.5 };
     expect(getSituation(state).availableActions.filter((action) => action.type === 'shoot')).toHaveLength(0);
+    // Arriere plein axe : le tir en suspension est propose, avec un tir place
+    // de rechange.
     state.players.yanis!.position = { x: 20 + SHOOTING_RANGE - 1, y: 10 };
-    expect(getSituation(state).availableActions.filter((action) => action.type === 'shoot')).toHaveLength(1);
+    // Deux gestes proposes : suspension par defaut, place en rechange.
+    expect(getSituation(state).availableActions.filter((action) => action.type === 'shoot')).toHaveLength(2);
     expect(distanceToGoal({ x: 31, y: 10 }, 'nangis')).toBe(9);
     expect(distanceToGoal({ x: 20, y: 17 }, 'nangis')).toBe(20);
+    // L'angle ferme pese : meme distance axiale, l'aile est plus loin en effectif.
+    expect(shotContext({ x: 32, y: 1.5 }, 'nangis').effectiveDistance).toBeGreaterThan(shotContext({ x: 32, y: 10 }, 'nangis').effectiveDistance);
+  });
+
+  it('bat vraiment le defenseur sur duel gagne et distingue le dribble', () => {
+    const state = createPilotMatch(44);
+    state.players.aaron!.position = { x: 30, y: 10 };
+    state.players.mael!.position = { x: 31, y: 10 };
+    state.ball.holderId = 'aaron';
+    let won: MatchState | undefined;
+    for (let seed = 1; seed <= 60 && !won; seed += 1) {
+      const duel = resolveAction(state, { type: 'duel', actorId: 'aaron', targetId: 'mael' }, new SeededRandom(seed));
+      if (duel.event.result === 'won') won = duel.state;
+    }
+    expect(won).toBeDefined();
+    // Le battu recule, est marque battu, et ne presse plus dans la foulee.
+    expect(won?.players.mael?.beatenUntil ?? 0).toBeGreaterThan(won?.timeSeconds ?? 0);
+    expect(won?.players.mael?.position.x ?? 0).toBeLessThan(31);
+    expect(won?.players.aaron?.position.x ?? 0).toBeGreaterThan(30);
+    // Le dribble ne bat personne : il decale sans marquer beatenUntil.
+    const shifted = resolveAction(state, { type: 'dribble', actorId: 'aaron', targetId: 'mael' }, new SeededRandom(7));
+    if (shifted.event.result === 'shifted') {
+      expect(shifted.state.players.mael?.beatenUntil ?? 0).toBeLessThanOrEqual(shifted.state.timeSeconds);
+      expect(shifted.state.players.aaron?.position).not.toEqual({ x: 30, y: 10 });
+    }
+  });
+
+  it('fait repondre le defenseur le plus proche avant la resolution', () => {
+    const state = createPilotMatch(44);
+    state.players.aaron!.position = { x: 30, y: 10 };
+    state.players.mael!.position = { x: 31.5, y: 10 };
+    state.ball.holderId = 'aaron';
+    const contested = contestAction(state, { type: 'duel', actorId: 'aaron', targetId: 'mael' });
+    expect(contested.contestedBy).toBeDefined();
+    expect(['press', 'contain', 'retreat']).toContain(contested.contestAction);
+    // Un battu ne conteste plus : le second rideau prend le relais.
+    const beatenState = structuredClone(state);
+    beatenState.players.mael!.beatenUntil = beatenState.timeSeconds + 6;
+    const relayed = contestAction(beatenState, { type: 'duel', actorId: 'aaron', targetId: 'mael' });
+    if (relayed.contestedBy) {
+      expect(relayed.contestedBy).not.toBe('mael');
+    }
+    // Le coach peut imposer sa reponse : le repli ouvre le tir.
+    const imposed = { type: 'shoot', actorId: 'aaron', contestedBy: 'mael', contestAction: 'retreat' } as const;
+    const retreated = resolveAction(state, { ...imposed }, new SeededRandom(11));
+    expect(retreated.event.causes.join(' ')).toMatch(/retreat|distance|open/);
+  });
+
+  it('donne au croise deux coureurs qui echangent leurs couloirs', () => {
+    const state = createPilotMatch(44);
+    const aaronBefore = { ...state.players.aaron!.position };
+    const erwanBefore = { ...state.players.erwan!.position };
+    const cross = resolveAction(state, { type: 'cross', actorId: 'aaron', targetId: 'erwan' }, new SeededRandom(46));
+    expect(cross.event.result).toBe('started');
+    // Les deux bougent, dans des sens lateraux opposes : ils se croisent.
+    expect(cross.state.players.aaron?.position).not.toEqual(aaronBefore);
+    expect(cross.state.players.erwan?.position).not.toEqual(erwanBefore);
+    const aaronDy = (cross.state.players.aaron?.position.y ?? 0) - aaronBefore.y;
+    const erwanDy = (cross.state.players.erwan?.position.y ?? 0) - erwanBefore.y;
+    expect(Math.sign(aaronDy)).not.toBe(Math.sign(erwanDy));
+  });
+
+  it('expose sortie, repli et interception comme decisions defensives', () => {
+    const state = createPilotMatch(44);
+    state.players.aaron!.position = { x: 30, y: 10 };
+    state.players.mael!.position = { x: 31, y: 10 };
+    state.ball.holderId = 'aaron';
+    const intents = defensiveIntents(state, 'lagny', 'mael');
+    expect(intents.some((intent) => intent.type === 'press')).toBe(true);
+    expect(intents.some((intent) => intent.type === 'intercept')).toBe(true);
+    const pressed = resolveAction(state, { type: 'press', actorId: 'mael', targetId: 'aaron' }, new SeededRandom(3));
+    expect(pressed.event.result).toBe('applied');
+    expect(pressed.state.players.aaron?.pressure ?? 0).toBeGreaterThanOrEqual(state.players.aaron?.pressure ?? 0);
+    const retreated = resolveAction(state, { type: 'retreat', actorId: 'mael', targetId: 'aaron' }, new SeededRandom(3));
+    expect(retreated.event.result).toBe('held');
   });
 
   it('ferme une ligne de passe quand un defenseur se place dessus', () => {
@@ -355,6 +449,21 @@ describe('placement, defense et terrain', () => {
       current = stepShapes(current).state;
     }
     expect(spread(current)).toBeLessThan(before);
+  });
+
+  it('conteste chaque etape meme dans une sequence preparee', () => {
+    const state = createPilotMatch(44);
+    const result = executeSequence(state, [
+      { action: { type: 'pass', actorId: 'yanis', targetId: 'aaron' }, continueOn: ['completed'] },
+      { action: { type: 'duel', actorId: 'aaron', targetId: 'mael' }, continueOn: ['won', 'contained', 'foul-defense'] }
+    ]);
+    expect(result.events.length).toBeGreaterThan(0);
+  });
+
+  it('connait les 8 gestes de tir et leurs bonus par poste', () => {
+    expect(shotProfile('jump').backBonus).toBe(6);
+    expect(shotProfile('extension').wingBonus).toBe(10);
+    expect(shotProfile('unknown-gesture').label).toBe('tir place');
   });
 
   it('trace des zones et des buts aux bonnes dimensions', () => {

@@ -1,5 +1,5 @@
 import { SeededRandom } from './random.js';
-import { resolveAction } from './engine.js';
+import { contestAction, resolveAction } from './engine.js';
 import type { ActionIntent, MatchEvent, MatchState } from './types.js';
 
 export interface SequenceStep {
@@ -21,7 +21,8 @@ export function executeSequence(initialState: MatchState, steps: SequenceStep[],
   const random = new SeededRandom(seed + state.events.length);
   const events: MatchEvent[] = [];
   for (const step of steps) {
-    const resolution = resolveAction(state, step.action, random);
+    // Meme en sequence preparee, la defense repond a chaque etape.
+    const resolution = resolveAction(state, contestAction(state, step.action), random);
     state = resolution.state;
     events.push(resolution.event);
     const allowedContinuation = step.continueOn ?? [];

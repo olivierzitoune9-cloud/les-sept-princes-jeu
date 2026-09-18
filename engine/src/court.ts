@@ -32,6 +32,30 @@ export function distanceToGoal(position: Vector2, team: TeamId): number {
   return Math.abs(attackedGoalX(team) - position.x);
 }
 
+// Angle de tir vu du but : 0 = plein axe, grandit vers les ailes.
+// Un tir d'aile a angle ferme vaut moins qu'un tir plein centre a meme
+// distance sur l'axe x (docs 01 §29-35, 03 §1, 13 S48-13). Le gardien couvre
+// d'autant mieux que l'angle est ferme.
+export function shotAngle(position: Vector2): number {
+  // But de 3 m centre sur y = 10 : mi-largeur 1,5 m.
+  const lateral = Math.abs(position.y - 10);
+  const opening = Math.max(0, lateral - 1.5);
+  return Math.atan2(opening, 6);
+}
+
+// Contexte de tir complet : distance axiale + penalite d'angle exprimee en
+// metres equivalents, pour garder une formule lisible et testable.
+// A 6 m plein axe : ~0. A l'aile (y=1,5) : ~4-5 m equivalents.
+export function shotContext(position: Vector2, team: TeamId): { distance: number; angle: number; effectiveDistance: number } {
+  const distance = distanceToGoal(position, team);
+  const angle = shotAngle(position);
+  // L'angle pese d'autant plus qu'on est pres du but : a 6 m l'aile est
+  // presque injouable sans extension, a 12 m l'arriere garde son angle.
+  const closeness = Math.max(0, 1 - distance / 18);
+  const anglePenalty = angle * (4 + 10 * closeness);
+  return { distance, angle, effectiveDistance: distance + anglePenalty };
+}
+
 export function goalPostLateral(): [number, number] {
   return [CENTRE.y - GOAL_WIDTH / 2, CENTRE.y + GOAL_WIDTH / 2];
 }

@@ -1,13 +1,39 @@
 import { SeededRandom } from './random.js';
 import { createPilotMatch } from './match.js';
-import { distanceToGoal, attackingDirection } from './court.js';
+import { shotContext, attackingDirection } from './court.js';
 import { observeIntervals, passLaneContest } from './spatial.js';
 import { defensivePressure } from './defense.js';
 import { goalkeeperAdvantage, mentalSwing } from './goalkeeper.js';
 import type { ActionIntent, ActionResolution, MatchEvent, MatchState, Situation, TeamId, Vector2 } from './types.js';
 
-// Portee de tir credible, en metres. Au dela, aucun tir n est propose.
+// Portee de tir credible, en metres effectifs (distance + angle). Au dela,
+// aucun tir n est propose.
 export const SHOOTING_RANGE = 15;
+
+// Bonus / malus de chaque geste de tir par poste (docs 01 §29-35, 03 §1,
+// 13 S48-13, 14 phases A/C). Le tir n'est plus un jet unique : un ailier en
+// extension a 6 m n'a rien a voir avec un arriere en appui a 10 m.
+interface ShotProfileDef { label: string; power: number; wingBonus: number; backBonus: number; pivotBonus: number; needsSpace: boolean }
+const SHOT_PROFILES: Record<string, ShotProfileDef> = {
+  // Tir en suspension : geste de l'arriere qui s'eleve au-dessus du bloc.
+  jump: { label: 'tir en suspension', power: 4, wingBonus: 0, backBonus: 6, pivotBonus: 0, needsSpace: true },
+  // Tir en appui : puissance pure apres elan, geste d'Erwan sur S44-01.
+  standing: { label: 'tir en appui', power: 2, wingBonus: -2, backBonus: 6, pivotBonus: 2, needsSpace: true },
+  // Tir en extension : geste de l'ailier qui s'ecarte pour ouvrir l'angle.
+  // Malone, Pierre, Elian : sans extension, l'aile a angle ferme est injouable.
+  extension: { label: 'tir en extension', power: 0, wingBonus: 10, backBonus: -4, pivotBonus: -2, needsSpace: false },
+  placed: { label: 'tir place', power: 1, wingBonus: 3, backBonus: 1, pivotBonus: 3, needsSpace: false },
+  power: { label: 'tir en puissance', power: 3, wingBonus: -1, backBonus: 4, pivotBonus: 4, needsSpace: true },
+  lob: { label: 'lob', power: -1, wingBonus: 4, backBonus: -3, pivotBonus: 5, needsSpace: false },
+  roucoulette: { label: 'roucoulette', power: 0, wingBonus: 8, backBonus: -2, pivotBonus: 2, needsSpace: false },
+  chabala: { label: 'chabala', power: 1, wingBonus: 5, backBonus: 0, pivotBonus: 4, needsSpace: false }
+};
+
+export function shotProfile(type: string): ShotProfileDef {
+  const found = SHOT_PROFILES[type];
+  if (found) return found;
+  return { label: 'tir place', power: 1, wingBonus: 3, backBonus: 1, pivotBonus: 3, needsSpace: false };
+}
 
 function distance(first: Vector2, second: Vector2): number {
   return Math.hypot(first.x - second.x, first.y - second.y);
@@ -96,13 +122,15 @@ function intentionModifier(intention: ActionIntent['intention']): number {
 }
 
 function transferToOpponent(state: MatchState, team: TeamId): void {
-  const opponent = Object.values(state.players)
+  const sorted = Object.values(state.players)
     .filter((player) => player.team === opposingTeam(team) && player.isOnCourt && player.role !== 'goalkeeper')
-    .sort((first, second) => distance(first.position, state.ball.position) - distance(second.position, state.ball.position))[0];
-  if (opponent) {
-    state.ball.holderId = opponent.id;
-    state.ball.position = { ...opponent.position };
+    .sort((first, second) => distance(first.position, state.ball.position) - distance(second.position, state.ball.position));
+  if (sorted.length === 0) {
+    return;
   }
+  const opponent = sorted[0] as (typeof sorted)[number];
+  state.ball.holderId = opponent.id;
+  state.ball.position = { ...opponent.position };
   state.teams[team].possession = false;
   state.teams[opposingTeam(team)].possession = true;
 }
@@ -113,7 +141,8 @@ export function getSituation(state: MatchState): Situation {
     throw new Error(`Unknown ball holder ${state.ball.holderId}`);
   }
   const opponents = Object.values(state.players).filter((player) => player.team !== holder.team && player.isOnCourt && player.role !== 'goalkeeper');
-  const closestOpponent = opponents.sort((first, second) => distance(first.position, holder.position) - distance(second.position, holder.position))[0];
+  const orderedOpponents = opponents.sort((first, second) => distance(first.position, holder.position) - distance(second.position, holder.position));
+  const closestOpponent = orderedOpponents.length > 0 ? orderedOpponents[0] as (typeof orderedOpponents)[number] : undefined;
   // Les quatre partenaires les plus proches deviennent les options de passe,
   // pas les quatre premiers de l effectif.
   const teammates = Object.values(state.players)
@@ -122,6 +151,10 @@ export function getSituation(state: MatchState): Situation {
   const availableActions: ActionIntent[] = teammates.slice(0, 4).map((player) => ({ type: 'pass', actorId: holder.id, targetId: player.id }));
   if (closestOpponent) {
     availableActions.push({ type: 'duel', actorId: holder.id, targetId: closestOpponent.id });
+    // Dribble : reprise balle en main pour changer de rythme et de direction
+    // (doc 01 §4 : dribble distinct du duel). Moins d'engagement qu'un duel :
+    // on garde le ballon meme en echec, mais on ne bat personne.
+    availableActions.push({ type: 'dribble', actorId: holder.id, targetId: closestOpponent.id });
     availableActions.push({ type: 'fix', actorId: holder.id, targetId: closestOpponent.id });
   }
   const crossTarget = teammates.find((player) => player.role === 'back' || player.role === 'center');
@@ -141,10 +174,25 @@ export function getSituation(state: MatchState): Situation {
   availableActions.push({ type: 'run', actorId: holder.id, targetPosition: advanceTarget, runKind: 'advance' });
   availableActions.push({ type: 'run', actorId: holder.id, targetPosition: insideTarget, runKind: 'diagonal' });
   availableActions.push({ type: 'run', actorId: holder.id, targetPosition: outsideTarget, runKind: 'lateral' });
-  // Le tir n est propose que depuis une distance credible, mesuree sur l axe
-  // longueur par distanceToGoal. Jamais sur la largeur du terrain.
-  if (distanceToGoal(holder.position, holder.team) <= SHOOTING_RANGE) {
-    availableActions.push({ type: 'shoot', actorId: holder.id });
+  // Le tir n est propose que depuis une distance credible, mesuree en distance
+  // effective (axiale + angle). Un ailier excentre a 8 m axiaux peut etre hors
+  // portee quand un arriere plein axe a 12 m reste dedans (docs 01, 03, 14).
+  // Le geste propose depend du poste : extension pour l'ailier, suspension ou
+  // appui pour l'arriere, place ou chabala pour le pivot.
+  if (shotContext(holder.position, holder.team).effectiveDistance <= SHOOTING_RANGE) {
+    const wingShot: ActionIntent['shotType'] = 'extension';
+    const backShot: ActionIntent['shotType'] = (holder.momentum ?? 0) >= 30 ? 'standing' : 'jump';
+    const pivotShot: ActionIntent['shotType'] = 'placed';
+    const defaultShot: ActionIntent['shotType'] =
+      holder.role === 'wing' ? wingShot : holder.role === 'back' ? backShot : holder.role === 'pivot' ? pivotShot : 'placed';
+    availableActions.push({ type: 'shoot', actorId: holder.id, shotType: defaultShot });
+    // L'ailier garde une roucoulette de rechange, l'arriere un tir place :
+    // deux gestes, pas vingt boutons (doc 05 §108).
+    if (holder.role === 'wing') {
+      availableActions.push({ type: 'shoot', actorId: holder.id, shotType: 'roucoulette' });
+    } else if (holder.role === 'back' || holder.role === 'center') {
+      availableActions.push({ type: 'shoot', actorId: holder.id, shotType: 'placed' });
+    }
   }
   const intervals = observeIntervals(state, holder.team);
   return {
@@ -205,7 +253,16 @@ export function resolveAction(state: MatchState, action: ActionIntent, random = 
       throw new Error('A duel target must be an opponent');
     }
     const defensivePressureValue = defensivePressure(nextState.teams[opposingTeam(actor.team)].system, actor.role, action.intention);
-    const advantage = actor.duel + actor.acceleration + actor.confidence / 2 - opponent.defense - opponent.anticipation / 2 - defensivePressureValue / 2 + intentionModifier(action.intention) + (actor.momentum ?? 0) * 0.08;
+    // Reponse defensive annoncee : le defenseur qui conteste pese dans le duel
+    // (doc 00 : si l'adversaire a anticipe au bon moment, c'est bon).
+    const contestBonus = action.contestedBy === opponent.id
+      ? action.contestAction === 'press' ? 14
+      : action.contestAction === 'help' ? 18
+      : action.contestAction === 'retreat' ? -10
+      : action.contestAction === 'none' ? -6 : 6
+      : 0;
+    const beatenBonus = (opponent.beatenUntil ?? 0) > nextState.timeSeconds ? 25 : 0;
+    const advantage = actor.duel + actor.acceleration + actor.confidence / 2 - opponent.defense - opponent.anticipation / 2 - defensivePressureValue / 2 + intentionModifier(action.intention) + (actor.momentum ?? 0) * 0.08 + beatenBonus - contestBonus;
     const contactFoul = random.chance(Math.max(0.02, (actor.pressure + opponent.pressure) / 500));
     if (contactFoul) {
       const event = appendEvent(nextState, {
@@ -226,13 +283,61 @@ export function resolveAction(state: MatchState, action: ActionIntent, random = 
       actorId: actor.id,
       targetId: opponent.id,
       result: success ? 'won' : 'contained',
-      causes: success ? ['first step', 'acceleration', 'space'] : ['defensive anticipation', 'help coverage', 'fatigue']
+      causes: success
+        ? [...(action.contestedBy ? ['defensive contest beaten'] : ['first step', 'acceleration']), 'space', action.intention === 'attack-inside' ? 'inside interval' : action.intention === 'attack-outside' ? 'outside interval' : 'interval taken']
+        : [...(action.contestedBy ? ['defensive contest held'] : ['defensive anticipation', 'help coverage']), 'fatigue']
     });
     actor.pressure = success ? Math.max(0, actor.pressure - 8) : Math.min(100, actor.pressure + 10);
     if (success) {
-      actor.position = { x: actor.position.x + (actor.team === 'nangis' ? 2 : -2), y: actor.position.y };
+      // Duel gagne = acces au but (doc 01 §4, doc 12) : le defenseur est
+      // battu 6 secondes, recule et ne presse plus. L'attaquant avance vers
+      // l'intervalle choisi, pas d'un pas generique sur x.
+      const inside = action.intention !== 'attack-outside';
+      const lateral = actor.position.y <= 10 ? 1.5 : -1.5;
+      actor.position = {
+        x: actor.position.x + (actor.team === 'nangis' ? 2.5 : -2.5),
+        y: Math.max(1, Math.min(19, actor.position.y + (inside ? lateral : -lateral)))
+      };
+      opponent.position = {
+        x: opponent.position.x + (actor.team === 'nangis' ? -1.5 : 1.5),
+        y: opponent.position.y
+      };
+      opponent.beatenUntil = nextState.timeSeconds + 6;
+      opponent.pressure = Math.min(100, opponent.pressure + 12);
       nextState.ball.position = { ...actor.position };
     }
+    return { state: nextState, event };
+  }
+
+  // Dribble : changement de rythme et de direction balle en main. On ne bat
+  // personne, mais on se decale d'un pas et on fait reculer la pression d'un
+  // cran (doc 01 §4 : dribble, changement de direction, changement de rythme).
+  if (action.type === 'dribble') {
+    if (!opponent) {
+      throw new Error('A dribble target must be an opponent');
+    }
+    const advantage = actor.duel * 0.6 + actor.acceleration * 0.8 + actor.confidence / 3 - opponent.defense * 0.7 - opponent.anticipation / 3 + intentionModifier(action.intention);
+    const success = random.chance((advantage + 100) / 200);
+    const lateral = actor.position.y <= 10 ? -2 : 2;
+    if (success) {
+      actor.position = {
+        x: actor.position.x + (actor.team === 'nangis' ? 1.5 : -1.5),
+        y: Math.max(1, Math.min(19, actor.position.y + lateral))
+      };
+      nextState.ball.position = { ...actor.position };
+      actor.pressure = Math.max(0, actor.pressure - 6);
+      actor.momentum = Math.min(100, (actor.momentum ?? 0) + 15);
+    } else {
+      actor.pressure = Math.min(100, actor.pressure + 4);
+    }
+    const event = appendEvent(nextState, {
+      timeSeconds: nextState.timeSeconds,
+      type: 'dribble',
+      actorId: actor.id,
+      targetId: opponent.id,
+      result: success ? 'shifted' : 'held',
+      causes: success ? ['change of pace', 'change of direction', 'defender on heels'] : ['defender balance', 'no space taken']
+    });
     return { state: nextState, event };
   }
 
@@ -277,10 +382,20 @@ export function resolveAction(state: MatchState, action: ActionIntent, random = 
     if (!target || target.team !== actor.team) {
       throw new Error('A cross target must be a teammate');
     }
-    // Croise borne : permutation laterale progressive vers le cote oppose,
-    // jamais un saut miroir (doc 17, ecart E-003).
-    const mirrorPoint = { x: target.position.x, y: 20 - target.position.y };
-    target.position = stepToward(target.position, mirrorPoint, 3.5);
+  // Croise visible et jouable (docs 00 S44-01, 01 §1, 05 passe-et-va) :
+  // les deux coureurs echangent vraiment leurs couloirs — chacun vise le
+  // couloir actuel de l'autre, en convergant sur le meme axe x. Par pas bornes
+  // de 3,5 m. Le porteur garde le ballon et peut tirer ou passer derriere ;
+  // la defense doit suivre ou changer.
+  const sharedX = (actor.position.x + target.position.x) / 2;
+  const actorGoal = { x: sharedX, y: target.position.y };
+  const targetGoal = { x: sharedX, y: actor.position.y };
+  actor.position = stepToward(actor.position, actorGoal, 3.5);
+  target.position = stepToward(target.position, targetGoal, 3.5);
+    if (actor.id === nextState.ball.holderId) {
+      nextState.ball.position = { ...actor.position };
+    }
+    actor.momentum = Math.min(100, (actor.momentum ?? 0) + 10);
     const event = appendEvent(nextState, {
       timeSeconds: nextState.timeSeconds,
       type: 'cross',
@@ -369,33 +484,140 @@ export function resolveAction(state: MatchState, action: ActionIntent, random = 
     return { state: nextState, event };
   }
 
+  // Sortie : le defenseur monte agressivement sur le porteur pour le forcer
+  // a decider vite (doc 03 §1 : sortir). Monte la pression, ouvre derriere.
+  if (action.type === 'press') {
+    if (!opponent) {
+      throw new Error('A press target must be an opponent');
+    }
+    const pressPoint = { x: opponent.position.x + (actor.team === 'nangis' ? -0.8 : 0.8), y: opponent.position.y };
+    actor.position = stepToward(actor.position, pressPoint, 3.5);
+    opponent.pressure = Math.min(100, opponent.pressure + 16);
+    const event = appendEvent(nextState, {
+      timeSeconds: nextState.timeSeconds,
+      type: 'defensive-press',
+      actorId: actor.id,
+      targetId: opponent.id,
+      result: 'applied',
+      causes: ['aggressive exit', 'decision forced', 'space opened behind']
+    });
+    return { state: nextState, event };
+  }
+
+  // Repli : le defenseur recule vers son but et concede le tir lointain pour
+  // proteger l'intervalle (doc 03 §1 : reculer).
+  if (action.type === 'retreat') {
+    const goalX = actor.team === 'nangis' ? 0 : 40;
+    const retreatPoint = { x: goalX + (actor.team === 'nangis' ? 7 : -7), y: 10 };
+    actor.position = stepToward(actor.position, retreatPoint, 3.5);
+    if (opponent) {
+      opponent.pressure = Math.max(0, opponent.pressure - 8);
+    }
+    const retreatTarget = opponent ? opponent.id : actor.id;
+    const event = appendEvent(nextState, {
+      timeSeconds: nextState.timeSeconds,
+      type: 'defensive-retreat',
+      actorId: actor.id,
+      targetId: retreatTarget,
+      result: 'held',
+      causes: ['protect interval', 'concede distance', 'block set']
+    });
+    return { state: nextState, event };
+  }
+
+  // Interception : le defenseur tente de couper la ligne de passe lue
+  // (doc 03 §1 : anticiper la passe). Risque : si ca rate, il est efface.
+  if (action.type === 'intercept') {
+    if (!opponent) {
+      throw new Error('An intercept target must be an opponent');
+    }
+    const advantage = actor.anticipation + actor.defense / 2 - opponent.passing * 0.5 - distance(actor.position, opponent.position) * 4;
+    const success = random.chance((advantage + 60) / 160);
+    if (success) {
+      actor.position = stepToward(actor.position, opponent.position, 3.5);
+      transferToOpponent(nextState, opponent.team);
+      const event = appendEvent(nextState, {
+        timeSeconds: nextState.timeSeconds,
+        type: 'interception',
+        actorId: actor.id,
+        targetId: opponent.id,
+        result: 'stolen',
+        causes: ['pass read', 'lane anticipated', 'timing']
+      });
+      return { state: nextState, event };
+    }
+    actor.position = {
+      x: actor.position.x + (actor.team === 'nangis' ? 1.5 : -1.5),
+      y: actor.position.y
+    };
+    actor.beatenUntil = nextState.timeSeconds + 5;
+    const event = appendEvent(nextState, {
+      timeSeconds: nextState.timeSeconds,
+      type: 'interception',
+      actorId: actor.id,
+      targetId: opponent.id,
+      result: 'beaten',
+      causes: ['wrong read', 'defender eliminated', 'space opened']
+    });
+    return { state: nextState, event };
+  }
+
   if (action.type === 'shoot') {
     const goalkeeperId = findGoalkeeper(nextState, opposingTeam(actor.team));
-    const goalkeeper = goalkeeperId ? nextState.players[goalkeeperId] : undefined;
-    if (!nextState.teams[opposingTeam(actor.team)].sevenPlayer && !goalkeeper) {
+    const keeperEntry = goalkeeperId ? nextState.players[goalkeeperId] : undefined;
+    if (!nextState.teams[opposingTeam(actor.team)].sevenPlayer && !keeperEntry) {
       throw new Error(`No goalkeeper for ${opposingTeam(actor.team)}`);
     }
-    const distanceToGoal = actor.team === 'nangis' ? 40 - actor.position.x : actor.position.x;
+    const goalkeeper = keeperEntry;
+    // Distance effective : axiale + penalite d'angle. Un ailier excentre paie
+    // son angle ferme, un arriere plein axe garde sa portee (docs 01, 03, 14).
+    const context = shotContext(actor.position, actor.team);
+    const shotType = action.shotType ?? (actor.role === 'wing' ? 'extension' : actor.role === 'back' ? 'jump' : 'placed');
+    const profile = shotProfile(shotType);
+    const roleBonus = actor.role === 'wing' ? profile.wingBonus : actor.role === 'back' ? profile.backBonus : actor.role === 'pivot' ? profile.pivotBonus : 1;
+    // Espace conquis : un defenseur battu ou un intervalle ouvert vaut de l'or.
+    const intervals = observeIntervals(state, actor.team);
+    const opennessValues = intervals.map((interval) => interval.openness);
+    const openness = opennessValues.length > 0 ? Math.max(...opennessValues) : 0.5;
+    const beatenNearby = Object.values(nextState.players).some(
+      (player) => player.team !== actor.team && player.isOnCourt && (player.beatenUntil ?? 0) > nextState.timeSeconds && distance(player.position, actor.position) < 5
+    );
+    const spaceBonus = openness * 10 + (beatenNearby ? 12 : 0);
     // Tir en appui : l elan pris en course alimente la puissance (doc 17, E-002).
     const momentum = actor.momentum ?? 0;
-    const momentumBonus = momentum * (action.shotType === 'placed' ? 0.12 : 0.06);
-    const shootingPower = actor.shooting - distanceToGoal * 0.7 - actor.pressure * 0.3 + intentionModifier(action.intention) + momentumBonus;
+    const momentumBonus = momentum * (shotType === 'placed' ? 0.12 : 0.06);
+    // Un geste qui demande de l'espace (suspension, appui, puissance) sous
+    // forte pression perd de sa valeur : il faut etre lance ou decale.
+    const contestedMalus = profile.needsSpace ? Math.max(0, actor.pressure - 40) * 0.25 : 0;
+    const shootingPower = actor.shooting + profile.power + roleBonus + spaceBonus - context.effectiveDistance * 0.7 - actor.pressure * 0.3 + intentionModifier(action.intention) + momentumBonus - contestedMalus;
     const savePower = goalkeeper ? goalkeeper.goalkeeper + goalkeeper.anticipation * 0.35 : 0;
     const goalkeeperRead = goalkeeper ? goalkeeperAdvantage(nextState, goalkeeper.team, actor.id, {
-      type: action.shotType ?? 'placed',
+      type: shotType,
       side: action.shotSide ?? 'center',
       height: action.shotHeight ?? 'middle',
       power: actor.shooting
     }) : 0;
-    const goal = random.chance((shootingPower - savePower - goalkeeperRead + 100) / 200);
+    // Reponse defensive sur le tir : un bloc monte au bon moment fait chuter
+    // le tir (doc 00 : bloc au bon moment). Le repli concede le tir lointain.
+    const contestShootBonus = action.contestedBy
+      ? action.contestAction === 'block-shot' ? 16
+      : action.contestAction === 'press' ? 10
+      : action.contestAction === 'help' ? 12
+      : action.contestAction === 'retreat' ? -8
+      : action.contestAction === 'none' ? -6 : 4
+      : 0;
+    const goal = random.chance((shootingPower - savePower - goalkeeperRead - contestShootBonus + 100) / 200);
+    // Le repli concede par le defenseur se trace dans les deux issues : c est
+    // lui qui a ouvert la distance (doc 00 : la reponse defensive se lit).
+    const retreatCause = action.contestAction === 'retreat' ? ['retreat conceded'] : [];
     const eventData: Omit<MatchEvent, 'id'> = {
       timeSeconds: nextState.timeSeconds,
       type: 'shoot',
       actorId: actor.id,
       result: goal ? 'goal' : 'save',
       causes: goal
-        ? momentum >= 40 ? ['shot quality', 'run-up momentum', 'angle'] : ['shot quality', 'angle', 'timing']
-        : momentum >= 40 ? ['goalkeeper reading', 'run-up momentum', 'pressure'] : ['goalkeeper reading', 'pressure', 'shot distance']
+        ? [profile.label, actor.role === 'wing' ? 'wing angle managed' : actor.role === 'back' ? 'back range' : 'close range', beatenNearby ? 'defender beaten' : openness > 0.5 ? 'open interval' : 'shot quality', momentum >= 40 ? 'run-up momentum' : 'timing', ...retreatCause]
+        : [action.contestedBy ? 'defensive block timing' : 'goalkeeper reading', actor.role === 'wing' && shotType !== 'extension' && shotType !== 'roucoulette' ? 'closed angle' : 'pressure', 'shot distance', ...(momentum >= 40 ? ['run-up momentum faded'] : []), ...retreatCause]
     };
     if (goalkeeper) {
       eventData.targetId = goalkeeper.id;
@@ -445,9 +667,10 @@ export function resolveAction(state: MatchState, action: ActionIntent, random = 
   throw new Error(`Unsupported action ${action.type}`);
 }
 
-// Options defensives du coach (doc 17, ecart E-001) : le marquage strict et
-// l aide sont des decisions, pas des automatismes. L interface consomme ces
-// intents et les joue par playAction, sans rien recoder.
+// Options defensives du coach (doc 17, ecart E-001 + mandat pilote-sim) : le
+// marquage strict, l'aide, la sortie, le repli et l'interception sont des
+// decisions, pas des automatismes. L interface consomme ces intents et les
+// joue par playAction, sans rien recoder.
 export function defensiveIntents(state: MatchState, defendingTeam: TeamId, focusId?: string): ActionIntent[] {
   const holder = state.players[state.ball.holderId];
   if (!holder || holder.team === defendingTeam) {
@@ -458,7 +681,8 @@ export function defensiveIntents(state: MatchState, defendingTeam: TeamId, focus
   const defenders = Object.values(state.players)
     .filter((player) => player.team === defendingTeam && player.isOnCourt && player.role !== 'goalkeeper')
     .sort((first, second) => distance(first.position, reference) - distance(second.position, reference));
-  const defender = focus && focus.team === defendingTeam && focus.role !== 'goalkeeper' && focus.isOnCourt ? focus : defenders[0];
+  const focused = focus && focus.team === defendingTeam && focus.role !== 'goalkeeper' && focus.isOnCourt ? focus : undefined;
+  const defender = focused ?? defenders[0];
   if (!defender) {
     return [];
   }
@@ -468,11 +692,62 @@ export function defensiveIntents(state: MatchState, defendingTeam: TeamId, focus
   const intents: ActionIntent[] = [];
   if (distance(defender.position, holder.position) <= 6) {
     intents.push({ type: 'mark', actorId: defender.id, targetId: holder.id });
-  } else if (attackers[0]) {
-    intents.push({ type: 'mark', actorId: defender.id, targetId: attackers[0].id });
+  } else {
+    const fallback = attackers[0];
+    if (fallback) {
+      intents.push({ type: 'mark', actorId: defender.id, targetId: fallback.id });
+    }
   }
   intents.push({ type: 'help', actorId: defender.id, targetId: holder.id });
+  // Sortie agressive quand le porteur est a portee, repli quand il est loin,
+  // interception quand la ligne est lisible : le coach defend vraiment.
+  const holderDistance = distance(defender.position, holder.position);
+  if (holderDistance <= 4) {
+    intents.push({ type: 'press', actorId: defender.id, targetId: holder.id });
+  } else if (holderDistance >= 8) {
+    intents.push({ type: 'retreat', actorId: defender.id, targetId: holder.id });
+  }
+  if (attackers[0]) {
+    intents.push({ type: 'intercept', actorId: defender.id, targetId: holder.id });
+  }
   return intents;
+}
+
+// Reponse defensive automatique : quand l'attaque choisit duel ou tir, le
+// defenseur le plus proche conteste (doc 00 : gardien ou bloc au bon moment).
+// L'interface appelle contestAction avant playAction pour laisser le coach
+// defendre ; l'IA et la simulation l'appliquent d'office.
+export function contestAction(state: MatchState, action: ActionIntent): ActionIntent {
+  if (action.type !== 'duel' && action.type !== 'shoot' && action.type !== 'dribble' && action.type !== 'pass') {
+    return action;
+  }
+  if (action.contestedBy) return action;
+  const actor = state.players[action.actorId];
+  if (!actor) return action;
+  const defendingTeam = opposingTeam(actor.team);
+  const reference = actor.position;
+  const candidates = Object.values(state.players)
+    .filter((player) => player.team === defendingTeam && player.isOnCourt && player.role !== 'goalkeeper' && (player.beatenUntil ?? 0) <= state.timeSeconds)
+    .sort((first, second) => distance(first.position, reference) - distance(second.position, reference));
+  if (candidates.length === 0) return action;
+  const defender = candidates[0] as (typeof candidates)[number];
+  const holderDistance = distance(defender.position, actor.position);
+  if (action.type === 'shoot') {
+    const contestShoot = holderDistance <= 3 ? 'block-shot' : holderDistance <= 6 ? 'press' : 'retreat';
+    return { ...action, contestedBy: defender.id, contestAction: contestShoot };
+  }
+  if (action.type === 'pass') {
+    const laneTarget = action.targetId ? state.players[action.targetId] : undefined;
+    const lane = laneTarget
+      ? passLaneContest(state, actor.team, actor.position, laneTarget.position)
+      : { value: 0 };
+    if (lane.value > 0.55 && holderDistance <= 5) {
+      return { ...action, contestedBy: defender.id, contestAction: 'intercept' };
+    }
+    return action;
+  }
+  const contestDuel = holderDistance <= 2.5 ? 'press' : holderDistance <= 5 ? 'contain' : 'retreat';
+  return { ...action, contestedBy: defender.id, contestAction: contestDuel };
 }
 
 export function simulatePilotSequence(seed = 44): MatchState {

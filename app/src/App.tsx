@@ -24,6 +24,9 @@ function App() {
     setControlMode,
     awaitingDecision,
     letAiDecide,
+    pendingContest,
+    resolveContest,
+    letContestAiDecide,
     setSystem,
     takeTimeout,
     isMatchOver,
@@ -108,7 +111,23 @@ function App() {
       </main>
 
       {/* 3. Rangée Basse : Dock Tactique Horizontal (Hauteur fixe 148px) */}
-      {activePlayer && availableActions.length > 0 ? (
+      {pendingContest ? (
+        <footer className="action-dock-idle contest-bar">
+          <div className="idle-msg">
+            {pendingContest.defenderName} répond à {pendingContest.action.name} — choisis la défense
+          </div>
+          <div className="contest-options">
+            {pendingContest.options.map((option) => (
+              <button key={option.key} className="idle-ai-btn contest-btn" onClick={() => resolveContest(option.key)}>
+                {option.label} <span className="contest-detail">· {option.detail}</span>
+              </button>
+            ))}
+            <button className="idle-ai-btn" onClick={letContestAiDecide}>
+              ⚡ IA défend
+            </button>
+          </div>
+        </footer>
+      ) : activePlayer && availableActions.length > 0 ? (
         <ActionDock
           player={activePlayer}
           actions={availableActions}

@@ -1,5 +1,5 @@
 import { SeededRandom } from './random.js';
-import { resolveAction } from './engine.js';
+import { resolveAction, contestAction } from './engine.js';
 import { CENTRE } from './court.js';
 import { driftTeam, placeTeam, pressingDefenderId } from './formation.js';
 import type { ActionIntent, MatchEvent, MatchState, TeamId } from './types.js';
@@ -140,7 +140,11 @@ export function playAction(
   action: ActionIntent,
   random = new SeededRandom(state.seed + state.events.length)
 ): PlayedAction {
-  const resolution = resolveAction(state, action, random);
+  // Toute action offensive traverse la contestation defensive : le defenseur
+  // le plus proche repond (mandat pilote-sim, doc 00). Si le coach a deja
+  // choisi sa reponse via contestedBy, on la garde ; sinon l'automate repond.
+  const contested = contestAction(state, action);
+  const resolution = resolveAction(state, contested, random);
   const actor = state.players[action.actorId];
   const actorTeam = actor?.team;
   const possessionChanged = actorTeam ? !resolution.state.teams[actorTeam].possession : false;

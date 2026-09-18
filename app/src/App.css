@@ -85,6 +85,39 @@ html, body, #root {
   transform: translateY(-1px);
 }
 
+.contest-bar {
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.6rem;
+  height: auto;
+  min-height: 148px;
+  padding: 0.8rem 2rem;
+}
+
+.contest-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.contest-btn {
+  border-color: rgba(244, 63, 94, 0.5);
+  color: #fda4af;
+  background: rgba(244, 63, 94, 0.1);
+}
+
+.contest-btn:hover {
+  background: #f43f5e;
+  color: #fff;
+}
+
+.contest-detail {
+  opacity: 0.75;
+  font-weight: 400;
+  font-size: 0.75rem;
+}
+
 .feedback-toast {
   position: absolute;
   top: 100%;
