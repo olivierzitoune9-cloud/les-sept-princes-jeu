@@ -108,6 +108,32 @@ describe('pilot match engine', () => {
     expect(gap).toBeLessThan(2.6);
   });
 
+  it('bounds every repositioning step instead of teleporting', () => {
+    const state = createPilotMatch(44);
+    // Croise lointain : la cible se rapproche du miroir par pas de 3,5 m.
+    const before = { ...state.players.erwan!.position };
+    const mirror = { x: before.x, y: 20 - before.y };
+    const crossed = resolveAction(state, { type: 'cross', actorId: 'yanis', targetId: 'erwan' }, new SeededRandom(70));
+    const after = crossed.state.players.erwan!.position;
+    const moved = Math.hypot(after.x - before.x, after.y - before.y);
+    expect(moved).toBeGreaterThan(0);
+    expect(moved).toBeLessThanOrEqual(3.51);
+    expect(Math.hypot(mirror.x - after.x, mirror.y - after.y)).toBeLessThan(Math.hypot(mirror.x - before.x, mirror.y - before.y));
+    // Deplacement demande lointain : borne a 3,5 m, jamais un saut.
+    const kaelBefore = { ...crossed.state.players.kael!.position };
+    const stepped = resolveAction(crossed.state, { type: 'move', actorId: 'kael', targetPosition: { x: 5, y: 5 } }, new SeededRandom(71));
+    const kaelAfter = stepped.state.players.kael!.position;
+    expect(Math.hypot(kaelAfter.x - kaelBefore.x, kaelAfter.y - kaelBefore.y)).toBeCloseTo(3.5, 1);
+    expect(kaelAfter).not.toEqual({ x: 5, y: 5 });
+    // Marquage strict lointain : l affectation est immediate, le corps suit par pas.
+    const marked = resolveAction(stepped.state, { type: 'mark', actorId: 'mael', targetId: 'yanis' }, new SeededRandom(72));
+    expect(marked.state.teams.lagny.assignments?.mael).toBe('yanis');
+    const maelBefore = stepped.state.players.mael!.position;
+    const maelAfter = marked.state.players.mael!.position;
+    expect(Math.hypot(maelAfter.x - maelBefore.x, maelAfter.y - maelBefore.y)).toBeLessThanOrEqual(3.51);
+  });
+
+
   it('proposes coach defensive intents against the ball holder', () => {
     const state = createPilotMatch(44);
     state.players.kael!.position = { x: 22, y: 10 };

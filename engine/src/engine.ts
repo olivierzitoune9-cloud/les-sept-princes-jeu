@@ -13,6 +13,21 @@ function distance(first: Vector2, second: Vector2): number {
   return Math.hypot(first.x - second.x, first.y - second.y);
 }
 
+// Pas borne : aucun deplacement instantane ne depasse maxStep metres.
+// La decision (assignation, pression, echange de roles) s applique aussitot,
+// le corps suit par trajectoire continue (doc 17, ecart E-003).
+function stepToward(position: Vector2, target: Vector2, maxStep: number): Vector2 {
+  const remaining = Math.hypot(target.x - position.x, target.y - position.y);
+  if (remaining <= maxStep || remaining === 0) {
+    return { ...target };
+  }
+  const ratio = maxStep / remaining;
+  return {
+    x: position.x + (target.x - position.x) * ratio,
+    y: position.y + (target.y - position.y) * ratio
+  };
+}
+
 function cloneState(state: MatchState): MatchState {
   return structuredClone(state);
 }
@@ -242,7 +257,10 @@ export function resolveAction(state: MatchState, action: ActionIntent, random = 
     if (!opponent || actor.team === opponent.team) {
       throw new Error('A block target must be an opponent');
     }
-    actor.position = { x: opponent.position.x, y: opponent.position.y + (actor.position.y < 10 ? -1 : 1) };
+    // Ecran borne : le bloqueur avance vers le point d ecran par pas de
+    // 3,5 m, jamais teleporte (doc 17, ecart E-003).
+    const screenPoint = { x: opponent.position.x, y: opponent.position.y + (actor.position.y < 10 ? -1 : 1) };
+    actor.position = stepToward(actor.position, screenPoint, 3.5);
     opponent.pressure = Math.min(100, opponent.pressure + 8);
     const event = appendEvent(nextState, {
       timeSeconds: nextState.timeSeconds,
@@ -259,7 +277,10 @@ export function resolveAction(state: MatchState, action: ActionIntent, random = 
     if (!target || target.team !== actor.team) {
       throw new Error('A cross target must be a teammate');
     }
-    target.position = { x: target.position.x, y: 20 - target.position.y };
+    // Croise borne : permutation laterale progressive vers le cote oppose,
+    // jamais un saut miroir (doc 17, ecart E-003).
+    const mirrorPoint = { x: target.position.x, y: 20 - target.position.y };
+    target.position = stepToward(target.position, mirrorPoint, 3.5);
     const event = appendEvent(nextState, {
       timeSeconds: nextState.timeSeconds,
       type: 'cross',
@@ -309,10 +330,13 @@ export function resolveAction(state: MatchState, action: ActionIntent, random = 
     // bloc jusqu a la fin de la possession (rapport 14, phase B).
     const team = nextState.teams[actor.team];
     team.assignments = { ...(team.assignments ?? {}), [actor.id]: opponent.id };
-    actor.position = {
+    const markPoint = {
       x: Math.max(0.5, Math.min(39.5, opponent.position.x - attackingDirection(actor.team) * 1.3)),
       y: Math.max(1, Math.min(19, opponent.position.y))
     };
+    // L affectation et la pression sont immediates (decision), le corps
+    // rejoint le point de marquage par pas bornes (doc 17, ecart E-003).
+    actor.position = stepToward(actor.position, markPoint, 3.5);
     opponent.pressure = Math.min(100, opponent.pressure + 12);
     const event = appendEvent(nextState, {
       timeSeconds: nextState.timeSeconds,
@@ -329,7 +353,10 @@ export function resolveAction(state: MatchState, action: ActionIntent, random = 
     if (!opponent) {
       throw new Error('An help target must be an opponent');
     }
-    actor.position = { x: opponent.position.x + (actor.team === 'nangis' ? -1 : 1), y: opponent.position.y };
+    // Aide bornee : le defenseur fond vers le porteur par pas de 3,5 m,
+    // jamais teleporte (doc 17, ecart E-003).
+    const helpPoint = { x: opponent.position.x + (actor.team === 'nangis' ? -1 : 1), y: opponent.position.y };
+    actor.position = stepToward(actor.position, helpPoint, 3.5);
     opponent.pressure = Math.min(100, opponent.pressure + 8);
     const event = appendEvent(nextState, {
       timeSeconds: nextState.timeSeconds,
@@ -399,7 +426,12 @@ export function resolveAction(state: MatchState, action: ActionIntent, random = 
     if (!action.targetPosition) {
       throw new Error('A move target is required');
     }
-    actor.position = { ...action.targetPosition };
+    // Deplacement demande borne : trajectoire continue, jamais de saut.
+    // Si le porteur se deplace, le ballon suit (doc 17, ecart E-002).
+    actor.position = stepToward(actor.position, action.targetPosition, 3.5);
+    if (actor.id === nextState.ball.holderId) {
+      nextState.ball.position = { ...actor.position };
+    }
     const event = appendEvent(nextState, {
       timeSeconds: nextState.timeSeconds,
       type: 'move',

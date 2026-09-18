@@ -33,7 +33,7 @@ function appendEvent(state: MatchState, event: Omit<MatchEvent, 'id'>): MatchEve
 }
 
 // Remise en jeu : l attaque se replace en transition, la defense reprend son
-// dispositif du moment. Le porteur du ballon ne bouge jamais.
+// dispositif du moment. L elan retombe a la remise en jeu (doc 17, E-002).
 export function installPossession(state: MatchState, attackingTeam: TeamId, restart: RestartKind = 'interception'): MatchState {
   const nextState = structuredClone(state);
   const defendingTeam = opposingTeam(attackingTeam);
@@ -64,6 +64,7 @@ export function installPossession(state: MatchState, attackingTeam: TeamId, rest
   placeTeam(nextState, attackingTeam, 'transition', [holderId]);
   if (holder) {
     nextState.ball.position = { ...holder.position };
+    holder.momentum = 0;
   }
   return nextState;
 }
