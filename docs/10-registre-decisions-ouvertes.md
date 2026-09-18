@@ -83,3 +83,11 @@ Toute decision fermee doit etre ajoutee a `09-historique-decisions.md` avant d e
 - Contrainte : le moteur de simulation reste portable ; la decision ne bloque pas la refonte.
 - Test : la preuve de boucle joue dans le stack actuel ; la migration n'est envisagee que si le feel y est insuffisant.
 
+## O-012 - Câblage UI de la boucle de tour D-018
+
+- Statut : ouverte (moteur pret, interface a poser)
+- Question : comment l'app consomme `resolveTurn` — un ecran de choix simultane (attaque voit ses actions, defense voit ses 6 ordres, les deux cartes se resignent puis resolution), ou le choix defense d'abord masque puis attaque ?
+- Contrainte : pas de reaction (le choix defense doit etre pose sans connaitre l'action attaque) ; initiative affichee avant resolution ; une seule fenetre a la fois.
+- Test : un 1c1 Aaron-Mael a 10 m du but se joue en trois clics lisibles (action, ordre, resolution causee).
+
+

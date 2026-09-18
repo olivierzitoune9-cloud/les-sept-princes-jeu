@@ -137,3 +137,12 @@ Ce fichier trace les decisions qui structurent le projet. Une nouvelle decision 
 - Decision : la contestation ouvre sa fenetre de facon SYNCHRONE et fige la simulation jusqu'au choix du coach (plus de setTimeout) ; `defensiveIntents` propose tout le registre (mark/help/intercept/press/retreat) quelle que soit la distance — tenter un marquage a 20 m se punit par la resolution, pas par l'interface. Le gate moitie de terrain (x <= 20) reste : pas de fenetre hors zone a defendre.
 - Raison : une fenetre defensive qui ne s'ouvre jamais ou s'ouvre en douce vaut zero ; une option defensive interdite par l'interface au lieu d'etre punie par le moteur, c'est le meme bug que le top-4 offensif.
 - Impact : `useMatchEngine.ts` (fenetre synchrone, DEFENSIVE_SLOWDOWN_MS supprime), `engine.ts` (registre complet), `engine.test.ts` (test registre).
+
+## D-018 - Tour par tour a la Pokemon : decision contre decision a partir de 12 m
+
+- Date : 2026-09-18
+- Statut : adoptee (proposition joueur : « tour a tour, decision contre decision, comme Pokemon ; pas de reaction ; les defenses restent a plat hors zone » — membre, 2026-09-18)
+- Decision : la manche de duel s'ouvre des que le porteur entre a 12 m du but (moities symetriques, `TURN_ENTRY_DISTANCE = 12`). Hors manche, les defenses restent a plat (aucune individualite). Dans la manche : l'ATTAQUE choisit son action, la DEFENSE choisit son ordre AVEUGLE dans le meme temps (pas en reaction — c'est le veritable duel), l'initiative revient au plus rapide (acceleration + refleves) et donne +35 % au camp qui joue en premier, -30 % a l'autre. Six ordres defensifs : tenir, ceinturer, intercepter, appeler un renfort, faire faute, replier. L'ordre adverse se lit dans les causes de l'evenement : le joueur SAIT ce que la defense a joue apres resolution.
+- Raison : le continu avec fenetres synchrones ne donnait aucune lisibilite defensive ; la Pokemon-rule (choix simultane aveugle + initiative par stat de vitesse) est une boucle eprouvee, lisible, et fidele au 1c1 du hand : l'attaquant tente, le defenseur devine.
+- Impact : `engine/src/turn.ts` (nouveau : resolveTurn, resolveInitiative, chooseTurnDefenseOrder, inTurnRange, TURN_ENTRY_DISTANCE), `types.ts` (DuelDecision, DefensiveOrderTrace), `engine.ts` (DEFENSE_ORDER_LABELS, traces d'ordre), tests D-018. Calibrage tir : 50,7 % de reussite sur tir propre a 9 m contre Teddy (91) — on peut marquer. App : le câblage complet de la boucle de tour reste a poser dans `useMatchEngine.ts` (le moteur est pret, l'interface suit).
+
