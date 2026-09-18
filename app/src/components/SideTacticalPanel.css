@@ -1,0 +1,354 @@
+.side-tactical-panel {
+  width: 280px;
+  background: rgba(15, 23, 42, 0.75);
+  border-left: 1px solid rgba(148, 163, 184, 0.15);
+  display: flex;
+  flex-direction: column;
+  padding: 1rem;
+  box-sizing: border-box;
+  overflow-y: auto;
+  gap: 1rem;
+}
+
+.panel-duel-card,
+.panel-situation-card {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  background: rgba(30, 41, 59, 0.45);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.duel-header,
+.situation-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+}
+
+.duel-title,
+.sit-title {
+  font-size: 0.85rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #f1f5f9;
+}
+
+.duel-fighters {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.fighter {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.35rem;
+  flex: 1;
+}
+
+.fighter-num {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #fff;
+}
+
+.fighter.attacker .fighter-num {
+  background: #2563eb;
+  border: 2px solid #60a5fa;
+}
+
+.fighter.defender .fighter-num {
+  background: #dc2626;
+  border: 2px solid #f87171;
+}
+
+.fighter-details {
+  display: flex;
+  flex-direction: column;
+}
+
+.fighter-name {
+  font-size: 0.825rem;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.fighter-role {
+  font-size: 0.675rem;
+  color: #94a3b8;
+}
+
+.vs-badge {
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: #facc15;
+  background: rgba(250, 204, 21, 0.1);
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+}
+
+.duel-stats-compare {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  background: rgba(15, 23, 42, 0.6);
+  border-radius: 6px;
+  padding: 0.6rem 0.75rem;
+}
+
+.compare-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.75rem;
+}
+
+.stat-attacker {
+  font-weight: 700;
+  color: #60a5fa;
+  width: 25px;
+  text-align: left;
+}
+
+.stat-label {
+  color: #94a3b8;
+  font-size: 0.7rem;
+}
+
+.stat-defender {
+  font-weight: 700;
+  color: #f87171;
+  width: 25px;
+  text-align: right;
+}
+
+.duel-tactic-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.tactic-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.group-title {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #94a3b8;
+  letter-spacing: 0.05em;
+}
+
+.pill-group {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.pill {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  color: #cbd5e1;
+  cursor: pointer;
+}
+
+.pill.active {
+  background: rgba(250, 204, 21, 0.15);
+  border-color: #facc15;
+  color: #facc15;
+}
+
+.validate-duel-btn {
+  background: #facc15;
+  color: #0f172a;
+  border: none;
+  border-radius: 6px;
+  padding: 0.6rem;
+  font-size: 0.8rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  letter-spacing: 0.04em;
+}
+
+.validate-duel-btn:hover {
+  background: #fde047;
+  transform: translateY(-1px);
+}
+
+.sit-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.section-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #94a3b8;
+  letter-spacing: 0.05em;
+}
+
+.system-pill {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #fca5a5;
+  padding: 0.35rem 0.6rem;
+  border-radius: 4px;
+  font-size: 0.775rem;
+  font-weight: 700;
+}
+
+.sit-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.sit-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  color: #e2e8f0;
+}
+
+.sit-item.green .bullet {
+  color: #34d399;
+}
+
+.sit-item.blue .bullet {
+  color: #60a5fa;
+}
+
+.sit-item.gold .bullet {
+  color: #facc15;
+}
+
+/* Onglets hauts du panneau */
+.panel-tab-bar {
+  display: flex;
+  gap: 0.35rem;
+  background: rgba(15, 23, 42, 0.6);
+  padding: 3px;
+  border-radius: 6px;
+  border: 1px solid rgba(148, 163, 184, 0.15);
+}
+
+.panel-tab {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 0.4rem 0.2rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.panel-tab:hover {
+  color: #f8fafc;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.panel-tab.active {
+  background: rgba(37, 99, 235, 0.3);
+  color: #60a5fa;
+  border: 1px solid rgba(59, 130, 246, 0.4);
+}
+
+/* Grille de statistiques directes */
+.panel-analysis-card {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  background: rgba(30, 41, 59, 0.45);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem;
+}
+
+.stat-box {
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 6px;
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.stat-box-lbl {
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: #94a3b8;
+}
+
+.stat-box-val {
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: #f8fafc;
+}
+
+.stat-box-val.highlight {
+  color: #38bdf8;
+}
+
+.stat-box-val.danger {
+  color: #f87171;
+}
+
+.vs-sep {
+  color: #64748b;
+  font-size: 0.7rem;
+  font-weight: 400;
+}
+
+button.pill {
+  cursor: pointer;
+  outline: none;
+}
+
+button.pill:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+button.pill.active {
+  background: rgba(37, 99, 235, 0.45);
+  border-color: #3b82f6;
+  color: #ffffff;
+}

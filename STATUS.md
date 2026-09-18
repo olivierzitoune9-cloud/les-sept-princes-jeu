@@ -29,20 +29,26 @@
 
 ## Ce qui marche aujourd'hui
 
-- Match Nangis vs Lagny complet : 60 possessions ou 60 minutes, mi-temps, rapport de fin
-- Décisions du coach en mode Coach ; simulation intégrale en mode Auto
-- Remise en jeu cohérente après but (engagement), arrêt (relance gardien) ou interception
-- Défense de Lagny pilotée par l'IA avec lecture des patterns mémoire
-- Défense de Nangis dirigée par le coach (système + temps mort)
+- **Boucle interactive Jalon 0.1 rétablie** : le panneau d'actions s'ouvre automatiquement sur le porteur dès la possession Nangis, sans clic préalable nécessaire.
+- **Trajectoires tactiques visibles sur le terrain** :
+  - Passes : flèches en pointillés reliées aux coéquipiers receveurs, avec code couleur selon le risque (vert sûr, jaune modéré, rouge risqué).
+  - Tirs : cône et rayon de tir orientés vers le but adverse de Lagny.
+  - Duels / Fixations : ligne de contestation pointillée face au défenseur direct.
+  - Clic direct sur le terrain : cliquer sur un partenaire receveur déclenche directement la passe vers lui.
+- **Signalétique terrain** : noms des joueurs affichés sous chaque jeton, double halo or pour le porteur de balle, anneaux de cible pour les démarquages.
+- **Feedback causal en temps réel** : bandeau d'analyse tactique traduisant les causes du moteur après chaque passe, tir, duel ou interception (ex: *« Passe réussie : Yanis ➔ Aaron — intervalle ouvert »*, *« Arrêt de Teddy — lecture du gardien »*).
+- **Contrôle fluide** : bouton rapide *« ⚡ IA décide »* dans le bandeau et l'ActionPanel pour laisser l'IA jouer un coup instantanément si souhaité.
+- Match Nangis vs Lagny complet : 60 possessions ou 60 minutes, mi-temps, rapport de fin.
+- Défense de Lagny pilotée par l'IA avec lecture des patterns mémoire.
+- Défense de Nangis dirigée par le coach (système + temps mort).
 
 ## Prochaines étapes (dans l'ordre)
 
-1. **Trajectoires** : afficher passe/tir/course en pointillé pendant la fenêtre de décision (docs 01 §5, 04, 16 Phase B)
-2. **Rapport causal** : dernières causes du moteur dans MatchReport (doc 11 « rapport minimal »)
-3. **Fermer O-003 et O-005** dans `docs/10` avec la règle exacte ; entrées D-010/D-011 dans `docs/09`
-4. **Phase C** : 20 parties, 100 seeds, rapport doc 11
-5. **Phase D** : calibration chapitres 44 à 48 (fiches 13, rapport 14)
-6. **Actions défensives du coach** : exposer `mark`/`help` du moteur pendant la possession adverse
+1. **Rapport causal enrichi** : intégrer l'historique des causes moteur dans le `MatchReport` final (doc 11 « rapport minimal »).
+2. **Fermer O-003 et O-005** dans `docs/10` avec la règle exacte ; entrées D-010/D-011 dans `docs/09`.
+3. **Phase C** : 20 parties, 100 seeds, rapport doc 11.
+4. **Phase D** : calibration chapitres 44 à 48 (fiches 13, rapport 14).
+5. **Actions défensives du coach** : exposer `mark`/`help` du moteur pendant la possession adverse.
 
 ## Pour tester en local
 

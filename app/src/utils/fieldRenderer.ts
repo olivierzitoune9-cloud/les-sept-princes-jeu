@@ -21,6 +21,17 @@ import {
   substitutionZone
 } from '@engine/court.js'
 
+export interface TacticalTrajectory {
+  id: string
+  actionId: string
+  type: 'pass' | 'shoot' | 'duel' | 'fix' | 'cross' | 'run'
+  from: { x: number; y: number }
+  to: { x: number; y: number }
+  risk?: 'safe' | 'moderate' | 'risky'
+  label: string
+  targetPlayerId?: string
+}
+
 interface Player {
   id: string
   name: string
@@ -43,7 +54,9 @@ export function drawField(
   players: Player[],
   ball: Ball,
   selectedPlayerId: string | null,
-  pxm: number
+  pxm: number,
+  trajectories: TacticalTrajectory[] = [],
+  hoveredActionId: string | null = null
 ) {
   const toCanvas = (p: { x: number; y: number }): [number, number] =>
     courtToCanvas(p.x, p.y, pxm)
@@ -121,10 +134,35 @@ export function drawField(
     drawGoal(ctx, goalFrame(team), toCanvas)
   }
 
+  // Zones tactiques aux 9 mètres (Doc 05 - Section 5 : Aile G, 1-2, 2-3, Centre, 3-2, 2-1, Aile D)
+  drawTacticalZones(ctx, players, toCanvas, pxm)
+
+  // Cônes d'influence tactique (cône de passe jaune, contestation rouge, intervalle vert)
+  drawTacticalCones(ctx, players, toCanvas, pxm)
+
+  // Trajectoires tactiques (passes, tirs, duels) sous les jetons.
+  drawTacticalTrajectories(ctx, trajectories, toCanvas, hoveredActionId, pxm)
+
   // Ballon puis jetons.
   drawBall(ctx, ball, toCanvas, pxm)
+
+  const passTargetIds = new Set(
+    trajectories.filter((t) => t.type === 'pass' && t.targetPlayerId).map((t) => t.targetPlayerId)
+  )
+  const duelTargetIds = new Set(
+    trajectories.filter((t) => (t.type === 'duel' || t.type === 'fix') && t.targetPlayerId).map((t) => t.targetPlayerId)
+  )
+
   players.forEach((player) => {
-    drawPlayer(ctx, player, player.id === selectedPlayerId, toCanvas, pxm)
+    drawPlayer(
+      ctx,
+      player,
+      player.id === selectedPlayerId,
+      passTargetIds.has(player.id),
+      duelTargetIds.has(player.id),
+      toCanvas,
+      pxm
+    )
   })
 }
 
@@ -211,10 +249,295 @@ function drawBall(
   ctx.restore()
 }
 
+// Zones tactiques selon Doc 05 - Section 5 :
+// AILE G  1-2  2-3  CENTRE  3-2  2-1  AILE D
+function drawTacticalZones(
+  ctx: CanvasRenderingContext2D,
+  players: Player[],
+  toCanvas: (p: { x: number; y: number }) => [number, number],
+  pxm: number
+) {
+  const ZONES = [
+    { label: 'AILE G', minY: 0, maxY: 3.6, center: 1.8 },
+    { label: '1-2', minY: 3.6, maxY: 6.8, center: 5.2 },
+    { label: '2-3', minY: 6.8, maxY: 9.2, center: 8.0 },
+    { label: 'CENTRE', minY: 9.2, maxY: 10.8, center: 10.0 },
+    { label: '3-2', minY: 10.8, maxY: 13.2, center: 12.0 },
+    { label: '2-1', minY: 13.2, maxY: 16.4, center: 14.8 },
+    { label: 'AILE D', minY: 16.4, maxY: 20, center: 18.2 }
+  ]
+
+  const carrier = players.find((p) => p.hasBall)
+  // Lagny's 9m line around x = 29.5 (attacked by Nangis)
+  // Nangis' 9m line around x = 10.5 (attacked by Lagny)
+  const sides = [
+    { xZone: 29.2, isCarrierSide: carrier ? carrier.position.x >= 20 : true },
+    { xZone: 10.8, isCarrierSide: carrier ? carrier.position.x < 20 : false }
+  ]
+
+  ctx.save()
+  sides.forEach(({ xZone, isCarrierSide }) => {
+    ZONES.forEach((zone) => {
+      const isCurrentZone =
+        isCarrierSide &&
+        carrier &&
+        carrier.position.y >= zone.minY &&
+        carrier.position.y < zone.maxY
+      const [cx, cy] = toCanvas({ x: xZone, y: zone.center })
+
+      ctx.font = isCurrentZone
+        ? `700 ${Math.max(9, 0.42 * pxm)}px 'Segoe UI', system-ui, sans-serif`
+        : `600 ${Math.max(7.5, 0.35 * pxm)}px 'Segoe UI', system-ui, sans-serif`
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillStyle = isCurrentZone
+        ? 'rgba(250, 204, 21, 0.95)'
+        : 'rgba(148, 163, 184, 0.35)'
+      ctx.fillText(zone.label, cx, cy)
+
+      if (isCurrentZone) {
+        ctx.fillStyle = 'rgba(250, 204, 21, 0.7)'
+        ctx.beginPath()
+        ctx.arc(cx, cy + Math.max(7, 0.35 * pxm), 2.5, 0, Math.PI * 2)
+        ctx.fill()
+      }
+    })
+  })
+  ctx.restore()
+}
+
+function drawTacticalCones(
+  ctx: CanvasRenderingContext2D,
+  players: Player[],
+  toCanvas: (p: { x: number; y: number }) => [number, number],
+  pxm: number
+) {
+  const carrier = players.find((p) => p.hasBall)
+  if (!carrier) return
+
+  const isNangis = carrier.team === 'nangis'
+  const [carrierX, carrierY] = toCanvas(carrier.position)
+
+  // 1. Cône de vision / passe du porteur
+  // Nangis attaque vers la droite (angle 0), Lagny attaque vers la gauche (angle Math.PI)
+  ctx.save()
+  const visionAngle = isNangis ? 0 : Math.PI
+  const visionSpread = Math.PI / 3 // 60 degrés
+  const visionRadius = 10 * pxm
+
+  ctx.fillStyle = isNangis ? COLORS.carrierCone : 'rgba(239, 68, 68, 0.15)'
+  ctx.beginPath()
+  ctx.moveTo(carrierX, carrierY)
+  ctx.arc(carrierX, carrierY, visionRadius, visionAngle - visionSpread / 2, visionAngle + visionSpread / 2)
+  ctx.closePath()
+  ctx.fill()
+
+  ctx.strokeStyle = isNangis ? COLORS.carrierConeBorder : 'rgba(239, 68, 68, 0.35)'
+  ctx.lineWidth = 1.2
+  ctx.setLineDash([4, 4])
+  ctx.stroke()
+  ctx.setLineDash([])
+  ctx.restore()
+
+  // 2. Cône de contestation du défenseur le plus proche
+  const defendingTeam = isNangis ? 'lagny' : 'nangis'
+  const opponents = players.filter((p) => p.team === defendingTeam)
+  let closestOpponent: Player | null = null
+  let minDist = Infinity
+  for (const opp of opponents) {
+    const d = Math.hypot(opp.position.x - carrier.position.x, opp.position.y - carrier.position.y)
+    if (d < minDist && d < 7.5) {
+      minDist = d
+      closestOpponent = opp
+    }
+  }
+
+  if (closestOpponent) {
+    const [oppX, oppY] = toCanvas(closestOpponent.position)
+    const angleToCarrier = Math.atan2(carrierY - oppY, carrierX - oppX)
+    const contestSpread = Math.PI / 3.2
+    const contestRadius = Math.min(minDist * pxm + 12, 6 * pxm)
+
+    ctx.save()
+    ctx.fillStyle = isNangis ? COLORS.defenderCone : 'rgba(59, 130, 246, 0.18)'
+    ctx.beginPath()
+    ctx.moveTo(oppX, oppY)
+    ctx.arc(oppX, oppY, contestRadius, angleToCarrier - contestSpread / 2, angleToCarrier + contestSpread / 2)
+    ctx.closePath()
+    ctx.fill()
+
+    ctx.strokeStyle = isNangis ? COLORS.defenderConeBorder : 'rgba(59, 130, 246, 0.45)'
+    ctx.lineWidth = 1.2
+    ctx.setLineDash([3, 3])
+    ctx.stroke()
+    ctx.setLineDash([])
+    ctx.restore()
+  }
+
+  // 3. Zone d'intervalle libre (couloir vert doux entre deux défenseurs)
+  if (isNangis && carrier.position.x >= 18 && carrier.position.x <= 34) {
+    const sortedDefenders = opponents
+      .map((opp) => ({ opp, d: Math.hypot(opp.position.x - carrier.position.x, opp.position.y - carrier.position.y) }))
+      .sort((a, b) => a.d - b.d)
+
+    if (sortedDefenders.length >= 2) {
+      const d1 = sortedDefenders[0].opp
+      const d2 = sortedDefenders[1].opp
+      const defDist = Math.hypot(d1.position.x - d2.position.x, d1.position.y - d2.position.y)
+      if (defDist >= 2.5 && defDist <= 8.5) {
+        const [x1, y1] = toCanvas(d1.position)
+        const [x2, y2] = toCanvas(d2.position)
+        const [targetX, targetY] = toCanvas({ x: Math.min(38, carrier.position.x + 8), y: (d1.position.y + d2.position.y) / 2 })
+
+        ctx.save()
+        ctx.fillStyle = COLORS.intervalZone
+        ctx.beginPath()
+        ctx.moveTo(x1, y1)
+        ctx.lineTo(targetX, targetY - 14)
+        ctx.lineTo(targetX, targetY + 14)
+        ctx.lineTo(x2, y2)
+        ctx.closePath()
+        ctx.fill()
+
+        ctx.strokeStyle = COLORS.intervalZoneBorder
+        ctx.lineWidth = 1
+        ctx.setLineDash([5, 5])
+        ctx.stroke()
+        ctx.setLineDash([])
+        ctx.restore()
+      }
+    }
+  }
+}
+
+function drawTacticalTrajectories(
+  ctx: CanvasRenderingContext2D,
+  trajectories: TacticalTrajectory[],
+  toCanvas: (p: { x: number; y: number }) => [number, number],
+  hoveredActionId: string | null,
+  pxm: number
+) {
+  if (!trajectories || trajectories.length === 0) return
+
+  ctx.save()
+
+  // Cones de tir
+  trajectories.filter((t) => t.type === 'shoot').forEach((traj) => {
+    const isHovered = traj.actionId === hoveredActionId
+    const [fromX, fromY] = toCanvas(traj.from)
+    const [topGoalX, topGoalY] = toCanvas({ x: 40, y: 8.5 })
+    const [botGoalX, botGoalY] = toCanvas({ x: 40, y: 11.5 })
+    const [centerGoalX, centerGoalY] = toCanvas({ x: 40, y: 10 })
+
+    ctx.fillStyle = isHovered ? 'rgba(251, 191, 36, 0.24)' : 'rgba(251, 191, 36, 0.08)'
+    ctx.beginPath()
+    ctx.moveTo(fromX, fromY)
+    ctx.lineTo(topGoalX, topGoalY)
+    ctx.lineTo(botGoalX, botGoalY)
+    ctx.closePath()
+    ctx.fill()
+
+    ctx.strokeStyle = isHovered ? '#fbbf24' : 'rgba(251, 191, 36, 0.75)'
+    ctx.lineWidth = isHovered ? 3 : 1.8
+    ctx.setLineDash([8, 4])
+    ctx.beginPath()
+    ctx.moveTo(fromX, fromY)
+    ctx.lineTo(centerGoalX, centerGoalY)
+    ctx.stroke()
+    ctx.setLineDash([])
+
+    drawArrowHead(ctx, fromX, fromY, centerGoalX - 8, centerGoalY, isHovered ? '#fbbf24' : 'rgba(251, 191, 36, 0.85)', isHovered ? 9 : 7)
+  })
+
+  // Lignes de passe
+  trajectories.filter((t) => t.type === 'pass').forEach((traj) => {
+    const isHovered = traj.actionId === hoveredActionId
+    const [fromX, fromY] = toCanvas(traj.from)
+    const [toX, toY] = toCanvas(traj.to)
+
+    const color = traj.risk === 'safe'
+      ? (isHovered ? '#34d399' : 'rgba(52, 211, 153, 0.75)')
+      : traj.risk === 'risky'
+      ? (isHovered ? '#f87171' : 'rgba(248, 113, 113, 0.75)')
+      : (isHovered ? '#fbbf24' : 'rgba(251, 191, 36, 0.75)')
+
+    ctx.strokeStyle = color
+    ctx.lineWidth = isHovered ? 3.2 : 1.8
+    ctx.setLineDash(isHovered ? [8, 3] : [6, 5])
+    ctx.beginPath()
+    ctx.moveTo(fromX, fromY)
+    ctx.lineTo(toX, toY)
+    ctx.stroke()
+    ctx.setLineDash([])
+
+    const angle = Math.atan2(toY - fromY, toX - fromX)
+    const dist = Math.hypot(toX - fromX, toY - fromY)
+    const offsetDist = Math.max(0, dist - (PLAYER_RADIUS * pxm + 4))
+    const arrowX = fromX + Math.cos(angle) * offsetDist
+    const arrowY = fromY + Math.sin(angle) * offsetDist
+    drawArrowHead(ctx, fromX, fromY, arrowX, arrowY, color, isHovered ? 9 : 7)
+  })
+
+  // Duels et fixations
+  trajectories.filter((t) => t.type === 'duel' || t.type === 'fix').forEach((traj) => {
+    const isHovered = traj.actionId === hoveredActionId
+    const [fromX, fromY] = toCanvas(traj.from)
+    const [toX, toY] = toCanvas(traj.to)
+
+    const color = isHovered ? '#f43f5e' : 'rgba(244, 63, 94, 0.75)'
+    ctx.strokeStyle = color
+    ctx.lineWidth = isHovered ? 2.8 : 1.6
+    ctx.setLineDash([4, 4])
+    ctx.beginPath()
+    ctx.moveTo(fromX, fromY)
+    ctx.lineTo(toX, toY)
+    ctx.stroke()
+    ctx.setLineDash([])
+
+    const midX = (fromX + toX) / 2
+    const midY = (fromY + toY) / 2
+    ctx.fillStyle = color
+    ctx.beginPath()
+    ctx.arc(midX, midY, isHovered ? 4.5 : 3, 0, Math.PI * 2)
+    ctx.fill()
+  })
+
+  ctx.restore()
+}
+
+function drawArrowHead(
+  ctx: CanvasRenderingContext2D,
+  fromX: number,
+  fromY: number,
+  toX: number,
+  toY: number,
+  color: string,
+  size: number
+) {
+  const angle = Math.atan2(toY - fromY, toX - fromX)
+  ctx.save()
+  ctx.fillStyle = color
+  ctx.beginPath()
+  ctx.moveTo(toX, toY)
+  ctx.lineTo(
+    toX - size * Math.cos(angle - Math.PI / 6),
+    toY - size * Math.sin(angle - Math.PI / 6)
+  )
+  ctx.lineTo(
+    toX - size * Math.cos(angle + Math.PI / 6),
+    toY - size * Math.sin(angle + Math.PI / 6)
+  )
+  ctx.closePath()
+  ctx.fill()
+  ctx.restore()
+}
+
 function drawPlayer(
   ctx: CanvasRenderingContext2D,
   player: Player,
   selected: boolean,
+  isPassTarget: boolean,
+  isDuelTarget: boolean,
   toCanvas: (p: { x: number; y: number }) => [number, number],
   pxm: number
 ) {
@@ -229,22 +552,75 @@ function drawPlayer(
   ctx.ellipse(x + 2, y + 3.5, radius * 0.95, radius * 0.5, 0, 0, Math.PI * 2)
   ctx.fill()
 
-  // Porteur : anneau blanc.
+  // Porteur de balle : double anneau or éclatant
   if (player.hasBall) {
-    ctx.strokeStyle = '#f8fafc'
-    ctx.lineWidth = 2.5
+    ctx.strokeStyle = '#facc15'
+    ctx.lineWidth = 3
     ctx.beginPath()
-    ctx.arc(x, y, radius + 3, 0, Math.PI * 2)
+    ctx.arc(x, y, radius + 4, 0, Math.PI * 2)
+    ctx.stroke()
+
+    ctx.strokeStyle = 'rgba(250, 204, 21, 0.45)'
+    ctx.lineWidth = 1.5
+    ctx.beginPath()
+    ctx.arc(x, y, radius + 7.5, 0, Math.PI * 2)
     ctx.stroke()
   }
 
-  // Selection : anneau clair.
+  // Cible de passe disponible : anneau discret émeraude
+  if (isPassTarget && !player.hasBall) {
+    ctx.strokeStyle = 'rgba(52, 211, 153, 0.8)'
+    ctx.lineWidth = 2
+    ctx.setLineDash([4, 3])
+    ctx.beginPath()
+    ctx.arc(x, y, radius + 4.5, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.setLineDash([])
+  }
+
+  // Cible de duel : anneau d'affrontement rose/rouge
+  if (isDuelTarget) {
+    ctx.strokeStyle = 'rgba(244, 63, 94, 0.8)'
+    ctx.lineWidth = 2
+    ctx.setLineDash([3, 3])
+    ctx.beginPath()
+    ctx.arc(x, y, radius + 4.5, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.setLineDash([])
+  }
+
+  // Selection : anneau clair
   if (selected) {
     ctx.strokeStyle = '#e2e8f0'
-    ctx.lineWidth = SELECTION_RING_WIDTH
+    ctx.lineWidth = Math.max(2, SELECTION_RING_WIDTH * pxm)
+    ctx.beginPath()
+    ctx.arc(x, y, radius + 6, 0, Math.PI * 2)
+    ctx.stroke()
+  }
+
+  // Jauge d'énergie / fatigue (Doc 05 - Section 6 : affichage de la fatigue sur le cercle)
+  const energy = player.fatigue ?? 100
+  if (energy < 92) {
+    const energyColor = energy >= 65 ? '#34d399' : energy >= 38 ? '#fbbf24' : '#f87171'
+    ctx.strokeStyle = energyColor
+    ctx.lineWidth = 2.2
+    ctx.beginPath()
+    const startAngle = -Math.PI / 2
+    const endAngle = startAngle + (Math.PI * 2 * (energy / 100))
+    ctx.arc(x, y, radius + 2.4, startAngle, endAngle)
+    ctx.stroke()
+  }
+
+  // Statut : alerte de pression défensive forte (> 55%)
+  const pressure = player.pressure ?? 0
+  if (pressure > 55) {
+    ctx.strokeStyle = 'rgba(244, 63, 94, 0.65)'
+    ctx.lineWidth = 1.8
+    ctx.setLineDash([3, 3])
     ctx.beginPath()
     ctx.arc(x, y, radius + 5.5, 0, Math.PI * 2)
     ctx.stroke()
+    ctx.setLineDash([])
   }
 
   // Corps du jeton.
@@ -265,6 +641,11 @@ function drawPlayer(
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
   ctx.fillText(String(player.number), x, y + 0.5)
+
+  // Nom du joueur sous le jeton pour lisibilite immediate
+  ctx.fillStyle = player.team === 'nangis' ? 'rgba(226, 232, 240, 0.92)' : 'rgba(254, 202, 202, 0.85)'
+  ctx.font = `600 ${Math.max(8.5, radius * 0.52)}px 'Segoe UI', system-ui, sans-serif`
+  ctx.fillText(player.name, x, y + radius + 8.5)
 
   ctx.restore()
 }

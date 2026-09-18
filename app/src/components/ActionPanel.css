@@ -26,6 +26,27 @@
   margin-bottom: 1rem;
 }
 
+.ai-decide-btn {
+  padding: 0.5rem 1rem;
+  background: rgba(250, 204, 21, 0.15);
+  border: 1px solid #facc15;
+  color: #facc15;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.ai-decide-btn:hover {
+  background: #facc15;
+  color: #0f172a;
+  transform: translateY(-1px);
+}
+
 .player-info {
   display: flex;
   align-items: center;

@@ -2,7 +2,9 @@ import { useState, useEffect } from 'react'
 import './App.css'
 import Field from './components/Field'
 import HUD from './components/HUD'
-import ActionPanel from './components/ActionPanel'
+import ActionDock from './components/ActionDock'
+import SideTacticalPanel from './components/SideTacticalPanel'
+import ActionClimaxOverlay from './components/ActionClimaxOverlay'
 import MatchReport from './components/MatchReport'
 import useMatchEngine from './hooks/useMatchEngine'
 
@@ -21,13 +23,18 @@ function App() {
     controlMode,
     setControlMode,
     awaitingDecision,
-    decisionLabel,
     letAiDecide,
     setSystem,
     takeTimeout,
     isMatchOver,
     restartMatch,
-    seed
+    seed,
+    feedback,
+    trajectories,
+    hoveredActionId,
+    setHoveredActionId,
+    climax,
+    activeDuel
   } = useMatchEngine()
 
   const [showReport, setShowReport] = useState(false)
@@ -49,43 +56,80 @@ function App() {
     }
   }, [isMatchOver, showReport])
 
+  // Joueur actif : porteur de balle
+  const activePlayer = selectedPlayer ?? matchState?.players.find((p) => p.hasBall) ?? null
+
   return (
-    <div className="app">
-      <HUD
-        matchState={matchState}
-        speed={speed}
-        onSpeedChange={setSpeed}
-        isPaused={isPaused}
-        onTogglePause={togglePause}
-        controlMode={controlMode}
-        onControlModeChange={setControlMode}
-        awaitingDecision={awaitingDecision}
-        onLetAiDecide={letAiDecide}
-        onSetSystem={setSystem}
-        onTakeTimeout={takeTimeout}
-        seed={seed}
-      />
-
-      {decisionLabel && (
-        <div className="decision-banner">{decisionLabel}</div>
-      )}
-
-      <div className="main-container">
-        <Field
+    <div className="app-layout">
+      {/* 1. Rangée Haut : HUD */}
+      <header className="app-header">
+        <HUD
           matchState={matchState}
-          selectedPlayer={selectedPlayer?.id || null}
-          onPlayerSelect={selectPlayer}
+          speed={speed}
+          onSpeedChange={setSpeed}
+          isPaused={isPaused}
+          onTogglePause={togglePause}
+          controlMode={controlMode}
+          onControlModeChange={setControlMode}
+          awaitingDecision={awaitingDecision}
+          onLetAiDecide={letAiDecide}
+          onSetSystem={setSystem}
+          onTakeTimeout={takeTimeout}
+          seed={seed}
         />
-      </div>
+        {feedback && (
+          <div className={`feedback-toast ${feedback.success ? 'success' : 'failure'}`}>
+            <span className="feedback-type">{feedback.type}</span>
+            <span className="feedback-title">{feedback.title}</span>
+            {feedback.detail && <span className="feedback-detail">— {feedback.detail}</span>}
+          </div>
+        )}
+      </header>
 
-      {awaitingDecision && selectedPlayer && availableActions.length > 0 && (
-        <ActionPanel
-          player={selectedPlayer}
+      {/* 2. Rangée Centrale : Terrain + Panneau Tactique (Jamais masqué) */}
+      <main className="app-center-arena">
+        <div className="field-viewport">
+          <Field
+            matchState={matchState}
+            selectedPlayer={activePlayer?.id || null}
+            trajectories={trajectories}
+            hoveredActionId={hoveredActionId}
+            onPlayerSelect={selectPlayer}
+            onTrajectorySelect={executeAction}
+          />
+          <ActionClimaxOverlay climax={climax} />
+        </div>
+
+        <SideTacticalPanel
+          duel={activeDuel}
+          systemLagny={matchState?.systems.lagny ?? '6-0'}
+          onExecuteDuel={executeAction}
+        />
+      </main>
+
+      {/* 3. Rangée Basse : Dock Tactique Horizontal (Hauteur fixe 148px) */}
+      {activePlayer && availableActions.length > 0 ? (
+        <ActionDock
+          player={activePlayer}
           actions={availableActions}
           onAction={executeAction}
+          onHoverAction={setHoveredActionId}
+          onLetAiDecide={letAiDecide}
         />
+      ) : (
+        <footer className="action-dock-idle">
+          <div className="idle-msg">
+            {matchState?.possession === 'lagny'
+              ? 'Défense de Nangis en place · Lagny attaque...'
+              : 'En attente de la prochaine situation...'}
+          </div>
+          <button className="idle-ai-btn" onClick={letAiDecide}>
+            ⚡ Accélérer avec l'IA
+          </button>
+        </footer>
       )}
 
+      {/* Rapport de fin de match */}
       {isMatchOver && showReport && engineState && (
         <MatchReport
           score={{

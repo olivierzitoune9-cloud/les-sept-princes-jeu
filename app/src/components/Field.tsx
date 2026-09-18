@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { drawField } from '../utils/fieldRenderer'
+import { drawField, type TacticalTrajectory } from '../utils/fieldRenderer'
 import {
   CANVAS_WIDTH_METRES,
   CANVAS_HEIGHT_METRES,
@@ -33,16 +33,31 @@ interface FieldProps {
     ball: Ball
   } | null
   selectedPlayer: string | null
+  trajectories?: TacticalTrajectory[]
+  hoveredActionId?: string | null
   onPlayerSelect: (playerId: string) => void
+  onTrajectorySelect?: (actionId: string) => void
 }
 
 const MIN_PXM = 7
-const MAX_PXM = 22
+const MAX_PXM = 34
 
-const Field: React.FC<FieldProps> = ({ matchState, selectedPlayer, onPlayerSelect }) => {
+const Field: React.FC<FieldProps> = ({
+  matchState,
+  selectedPlayer,
+  trajectories = [],
+  hoveredActionId = null,
+  onPlayerSelect,
+  onTrajectorySelect
+}) => {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const [pxm, setPxm] = useState(14)
+  const trajectoriesRef = useRef<TacticalTrajectory[]>(trajectories)
+  trajectoriesRef.current = trajectories
+  const hoveredActionIdRef = useRef<string | null>(hoveredActionId)
+  hoveredActionIdRef.current = hoveredActionId
+
   const animatedPositionsRef = useRef<Map<string, AnimatedPosition>>(new Map())
   const animatedBallRef = useRef<AnimatedPosition>({
     current: { x: 20, y: 10 },
@@ -143,7 +158,9 @@ const Field: React.FC<FieldProps> = ({ matchState, selectedPlayer, onPlayerSelec
         animatedPlayers,
         { position: { ...animatedBallRef.current.current } },
         selectedPlayer,
-        pxm
+        pxm,
+        trajectoriesRef.current,
+        hoveredActionIdRef.current
       )
 
       animationFrameRef.current = requestAnimationFrame(animate)
@@ -169,11 +186,19 @@ const Field: React.FC<FieldProps> = ({ matchState, selectedPlayer, onPlayerSelec
       pxm
     )
 
-    const clickedPlayer = matchState.players.find(player =>
-      Math.hypot(player.position.x - courtX, player.position.y - courtY) < 0.9
+    const clickedPlayer = matchState.players.find((player) =>
+      Math.hypot(player.position.x - courtX, player.position.y - courtY) < 1.35
     )
 
     if (clickedPlayer) {
+      // Si ce joueur est la cible d'une passe disponible, déclencher la passe immédiatement
+      const passTraj = trajectoriesRef.current.find(
+        (t) => t.type === 'pass' && t.targetPlayerId === clickedPlayer.id
+      )
+      if (passTraj && onTrajectorySelect) {
+        onTrajectorySelect(passTraj.actionId)
+        return
+      }
       onPlayerSelect(clickedPlayer.id)
     }
   }

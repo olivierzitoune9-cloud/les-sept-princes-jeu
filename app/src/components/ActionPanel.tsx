@@ -22,9 +22,17 @@ interface ActionPanelProps {
   player: Player
   actions: Action[]
   onAction: (actionId: string) => void
+  onHoverAction?: (actionId: string | null) => void
+  onLetAiDecide?: () => void
 }
 
-const ActionPanel: React.FC<ActionPanelProps> = ({ player, actions, onAction }) => {
+const ActionPanel: React.FC<ActionPanelProps> = ({
+  player,
+  actions,
+  onAction,
+  onHoverAction,
+  onLetAiDecide
+}) => {
   const fatiguePercent = player.fatigue || 100
   const pressurePercent = player.pressure || 0
 
@@ -64,14 +72,26 @@ const ActionPanel: React.FC<ActionPanelProps> = ({ player, actions, onAction }) 
             </div>
           </div>
         </div>
+
+        {onLetAiDecide && (
+          <button
+            className="ai-decide-btn"
+            onClick={onLetAiDecide}
+            title="Laisser l'IA trancher pour ce coup"
+          >
+            ⚡ Laisser l'IA décider
+          </button>
+        )}
       </div>
 
       <div className="actions-grid">
-        {actions.map(action => (
+        {actions.map((action) => (
           <button
             key={action.id}
             className="action-button"
             onClick={() => onAction(action.id)}
+            onMouseEnter={() => onHoverAction?.(action.id)}
+            onMouseLeave={() => onHoverAction?.(null)}
             disabled={!action.enabled}
           >
             <div className="action-name">{action.name}</div>

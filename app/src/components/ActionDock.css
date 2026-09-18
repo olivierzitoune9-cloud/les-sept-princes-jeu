@@ -1,0 +1,544 @@
+.action-dock {
+  width: 100%;
+  height: 148px;
+  background: #0f172a;
+  border-top: 1px solid rgba(148, 163, 184, 0.2);
+  display: grid;
+  grid-template-columns: 260px 1fr 340px;
+  gap: 1rem;
+  padding: 0.75rem 1.25rem;
+  box-sizing: border-box;
+  align-items: center;
+  z-index: 50;
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.4);
+}
+
+/* 1. Fiche Porteur */
+.dock-carrier {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  background: rgba(30, 41, 59, 0.5);
+  border: 1px solid rgba(148, 163, 184, 0.15);
+  border-radius: 8px;
+  padding: 0.65rem 0.85rem;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.carrier-badge {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: #fff;
+  flex-shrink: 0;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
+}
+
+.carrier-badge.nangis {
+  background: radial-gradient(circle at 35% 35%, #60a5fa, #2563eb);
+  border: 2px solid #93c5fd;
+}
+
+.carrier-badge.lagny {
+  background: radial-gradient(circle at 35% 35%, #f87171, #dc2626);
+  border: 2px solid #fca5a5;
+}
+
+.carrier-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.carrier-name {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #f8fafc;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.carrier-role {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #94a3b8;
+}
+
+.carrier-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.stat-line {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.725rem;
+  color: #94a3b8;
+}
+
+.stat-lbl {
+  width: 46px;
+  font-weight: 500;
+}
+
+.stat-track {
+  flex: 1;
+  height: 4px;
+  background: rgba(15, 23, 42, 0.8);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.stat-bar {
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+.stat-bar.energy {
+  background: #34d399;
+}
+
+.stat-bar.energy.danger {
+  background: #f59e0b;
+}
+
+.stat-bar.pressure {
+  background: #38bdf8;
+}
+
+.stat-bar.pressure.high {
+  background: #f43f5e;
+}
+
+.stat-val {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #cbd5e1;
+  width: 28px;
+  text-align: right;
+}
+
+/* 2. Les 5 Verbes Tactiques */
+.dock-categories {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.5rem;
+  height: 100%;
+  align-items: center;
+}
+
+.category-tab {
+  background: rgba(30, 41, 59, 0.4);
+  border: 1px solid rgba(148, 163, 184, 0.15);
+  border-radius: 8px;
+  height: 100%;
+  padding: 0.5rem 0.4rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 0.35rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  box-sizing: border-box;
+}
+
+.category-tab:hover:not(:disabled) {
+  background: rgba(51, 65, 85, 0.6);
+  border-color: rgba(250, 204, 21, 0.4);
+  transform: translateY(-2px);
+}
+
+.category-tab.selected {
+  background: rgba(250, 204, 21, 0.12);
+  border: 1.5px solid #facc15;
+  box-shadow: 0 0 16px rgba(250, 204, 21, 0.2);
+}
+
+.category-tab.empty {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.tab-icon {
+  font-size: 1.25rem;
+  color: #94a3b8;
+  line-height: 1;
+}
+
+.category-tab.selected .tab-icon {
+  color: #facc15;
+}
+
+.tab-name {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: #f1f5f9;
+}
+
+.tab-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: rgba(148, 163, 184, 0.2);
+  color: #cbd5e1;
+  font-size: 0.625rem;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 9999px;
+}
+
+.category-tab.selected .tab-badge {
+  background: #facc15;
+  color: #0f172a;
+}
+
+/* 3. Volet Sous-options contextuelles */
+.dock-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  height: 100%;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+.options-scroll {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  flex: 1;
+  align-items: center;
+}
+
+.options-scroll::-webkit-scrollbar {
+  height: 4px;
+}
+
+.options-scroll::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.2);
+  border-radius: 2px;
+}
+
+.option-btn {
+  background: rgba(30, 41, 59, 0.85);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 6px;
+  padding: 0.45rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  min-width: 140px;
+  max-width: 170px;
+  text-align: left;
+  flex-shrink: 0;
+  height: 68px;
+  justify-content: space-between;
+  box-sizing: border-box;
+}
+
+.option-btn:hover:not(:disabled) {
+  background: #1e293b;
+  border-color: #facc15;
+  transform: translateY(-1px);
+}
+
+.option-title {
+  font-size: 0.775rem;
+  font-weight: 700;
+  color: #f8fafc;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.option-desc {
+  font-size: 0.65rem;
+  color: #94a3b8;
+  line-height: 1.2;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.risk-tag {
+  font-size: 0.575rem;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 3px;
+  align-self: flex-start;
+  letter-spacing: 0.05em;
+}
+
+.risk-tag.safe {
+  background: rgba(52, 211, 153, 0.2);
+  color: #34d399;
+}
+
+.risk-tag.moderate {
+  background: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+}
+
+.risk-tag.risky {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+}
+
+/* Doc 05 - Section 12 : Échelle qualitative 5 niveaux */
+.quality-tag, .expert-pct-tag {
+  font-size: 0.6rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  align-self: flex-start;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.quality-tag.very-favorable, .expert-pct-tag.very-favorable {
+  background: rgba(16, 185, 129, 0.22);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.4);
+}
+
+.quality-tag.favorable, .expert-pct-tag.favorable {
+  background: rgba(20, 184, 166, 0.22);
+  color: #14b8a6;
+  border: 1px solid rgba(20, 184, 166, 0.4);
+}
+
+.quality-tag.neutral, .expert-pct-tag.neutral {
+  background: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
+
+.quality-tag.risky, .expert-pct-tag.risky {
+  background: rgba(249, 115, 22, 0.22);
+  color: #f97316;
+  border: 1px solid rgba(249, 115, 22, 0.4);
+}
+
+.quality-tag.very-risky, .expert-pct-tag.very-risky {
+  background: rgba(244, 63, 94, 0.22);
+  color: #f43f5e;
+  border: 1px solid rgba(244, 63, 94, 0.4);
+}
+
+.empty-category-msg {
+  font-size: 0.775rem;
+  color: #64748b;
+  font-style: italic;
+  padding: 0.5rem;
+}
+
+.dock-ai-shortcut {
+  background: rgba(250, 204, 21, 0.12);
+  border: 1px solid rgba(250, 204, 21, 0.4);
+  color: #facc15;
+  padding: 0.3rem 0.6rem;
+  border-radius: 4px;
+  font-size: 0.725rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  align-self: flex-end;
+}
+
+.dock-ai-shortcut:hover {
+  background: #facc15;
+  color: #0f172a;
+}
+
+/* 4. Dock Phase Défensive (Nangis défend, Lagny attaque) */
+.action-dock-defense {
+  width: 100%;
+  height: 148px;
+  background: #090d16;
+  border-top: 1px solid rgba(239, 68, 68, 0.35);
+  display: grid;
+  grid-template-columns: 280px 1fr 180px;
+  gap: 1.25rem;
+  padding: 0.75rem 1.5rem;
+  box-sizing: border-box;
+  align-items: center;
+  z-index: 50;
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.5);
+}
+
+.defense-carrier-box {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.defense-badge-circle {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #f87171, #dc2626);
+  border: 2px solid #fca5a5;
+  color: #fff;
+  font-size: 1.3rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.defense-carrier-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.defense-live-tag {
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: #ef4444;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.defense-carrier-meta .carrier-name {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #f8fafc;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.defense-carrier-meta .carrier-role {
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+.defense-systems-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  background: rgba(30, 41, 59, 0.4);
+  border: 1px solid rgba(148, 163, 184, 0.15);
+  border-radius: 8px;
+  padding: 0.65rem 1.25rem;
+  height: 100%;
+  box-sizing: border-box;
+  justify-content: center;
+}
+
+.defense-sys-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.defense-sys-label {
+  font-size: 0.725rem;
+  font-weight: 700;
+  color: #94a3b8;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.defense-sys-desc {
+  font-size: 0.7rem;
+  color: #38bdf8;
+  font-weight: 500;
+}
+
+.defense-sys-buttons {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.65rem;
+}
+
+.sys-choice-btn {
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  color: #cbd5e1;
+  padding: 0.45rem 0.65rem;
+  border-radius: 6px;
+  font-size: 0.775rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+}
+
+.sys-choice-btn:hover {
+  background: #1e293b;
+  border-color: #38bdf8;
+  color: #fff;
+}
+
+.sys-choice-btn.active {
+  background: rgba(56, 189, 248, 0.18);
+  border-color: #38bdf8;
+  color: #38bdf8;
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.25);
+}
+
+.sys-choice-sub {
+  font-size: 0.625rem;
+  font-weight: 500;
+  opacity: 0.8;
+}
+
+.defense-actions-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  height: 100%;
+  justify-content: center;
+}
+
+.defense-speed-btn {
+  background: rgba(250, 204, 21, 0.12);
+  border: 1px solid rgba(250, 204, 21, 0.4);
+  color: #facc15;
+  padding: 0.6rem 0.85rem;
+  border-radius: 6px;
+  font-size: 0.775rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+}
+
+.defense-speed-btn:hover {
+  background: #facc15;
+  color: #0f172a;
+}

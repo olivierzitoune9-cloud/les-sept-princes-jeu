@@ -38,7 +38,13 @@ export const COLORS = {
   goalGlow: 'rgba(190, 214, 245, 0.12)',
   danger: '#fb923c',
   opportunity: '#34d399',
-  decision: '#facc15'
+  decision: '#facc15',
+  carrierCone: 'rgba(250, 204, 21, 0.11)',
+  carrierConeBorder: 'rgba(250, 204, 21, 0.32)',
+  defenderCone: 'rgba(244, 63, 94, 0.14)',
+  defenderConeBorder: 'rgba(244, 63, 94, 0.4)',
+  intervalZone: 'rgba(16, 185, 129, 0.14)',
+  intervalZoneBorder: 'rgba(52, 211, 153, 0.45)'
 }
 
 // Zone du canvas : le terrain est entoure d une marge qui contient les cages.
