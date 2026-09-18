@@ -74,6 +74,9 @@ export interface PendingContest {
   defenderId: string
   defenderName: string
   options: Array<{ key: NonNullable<ActionIntent['contestAction']>; label: string; detail: string }>
+  // P1 : la contestation fige la simulation (doc 18 §3.4). Ce compteur est le
+  // garde-fou d'unicite : une seule fenetre a la fois, jamais deux concurrentes.
+  openedAt: number
 }
 
 // Seed par defaut : la partie est rejouable a l identique. La seed affichee
@@ -336,6 +339,9 @@ export default function useMatchEngine() {
   const lastAttackingTeamRef = useRef<TeamId>('nangis')
   const stallRef = useRef(0)
   const actionsRef = useRef<Action[]>([])
+  // P1 : miroir synchrone de pendingContest pour le garde-fou d'unicite
+  // (setState est asynchrone, le ref ne ment jamais).
+  const pendingContestRef = useRef<PendingContest | null>(null)
 
   const syncState = useCallback((next: MatchState) => {
     engineRef.current = next
@@ -425,7 +431,7 @@ export default function useMatchEngine() {
           { key: 'retreat', label: 'Reculer', detail: 'Proteger l intervalle' },
           { key: 'none', label: 'Laisser jouer', detail: 'Compter sur le placement' }
         ]
-  return { action, defenderId: defender.id, defenderName: defender.name, options: base }
+  return { action, defenderId: defender.id, defenderName: defender.name, options: base, openedAt: Date.now() }
 }
 
 // --- partie 2 : decisions ---
@@ -695,6 +701,9 @@ function buildShotOptions(playerId: string, state: MatchState): Action[] {
 
 // Actions proposees dans la fenetre de decision Nangis : celles du moteur,
 // dont les passes vers les coequipiers, plus les tirs parametres si dispo.
+// P1 (doc 18 §3.4) : 2 a 4 options pertinentes, pas un catalogue. On garde
+// les mieux classees par estimation moteur : le coach lit vite et choisit.
+const OFFENSIVE_WINDOW_MAX = 4
 const refreshActions = useCallback((state: MatchState, focusId?: string | null) => {
   const holder = state.players[state.ball.holderId]
   if (holder && holder.team === 'nangis') {
@@ -709,7 +718,10 @@ const refreshActions = useCallback((state: MatchState, focusId?: string | null) 
     if (situation.availableActions.some((action) => action.type === 'shoot')) {
       buildShotOptions(holder.id, state).forEach((shot) => unique.set(shot.id, shot))
     }
+    // P1 : fenetre courte. Les 4 meilleures estimations, tri decroissant.
     const list = Array.from(unique.values())
+      .sort((a, b) => b.estimatedSuccess - a.estimatedSuccess)
+      .slice(0, OFFENSIVE_WINDOW_MAX)
     setAvailableActions(list)
     actionsRef.current = list
     return
@@ -857,6 +869,7 @@ const refreshActions = useCallback((state: MatchState, focusId?: string | null) 
     const current = engineRef.current
     if (!current) return
     setPendingContest(null)
+    pendingContestRef.current = null
     setAwaitingDecision(false)
     awaitingDecisionRef.current = false
     setDecisionLabel(null)
@@ -884,6 +897,7 @@ const refreshActions = useCallback((state: MatchState, focusId?: string | null) 
         possessionCountRef.current += 1
       }
       handlePlayedActionWithDrama(current, played)
+      pendingContestRef.current = null
       return null
     })
   }, [handlePlayedActionWithDrama])
@@ -907,6 +921,7 @@ const refreshActions = useCallback((state: MatchState, focusId?: string | null) 
         possessionCountRef.current += 1
       }
       handlePlayedActionWithDrama(current, played)
+      pendingContestRef.current = null
       return null
     })
   }, [handlePlayedActionWithDrama])
@@ -977,6 +992,7 @@ const startMatch = useCallback(() => {
   lastAttackingTeamRef.current = 'nangis'
   isTransitioningRef.current = false
   setPendingContest(null)
+  pendingContestRef.current = null
   setIsPaused(false)
   setIsMatchOver(false)
   syncState(initial)
@@ -1038,6 +1054,12 @@ const takeTimeout = useCallback(() => {
   }
 }, [syncState])
 
+// P1 — temporalisation defensive (doc 18 §3.4, O-009) : quand le porteur
+// adverse entre en zone de decision, le temps ralentit fortement AVANT
+// d'ouvrir la fenetre, pour que le coach lise la situation. Delai borne,
+// jamais deux fenetres concurrentes (garde-fou openedAt + awaitingDecision).
+const DEFENSIVE_SLOWDOWN_MS = 1100
+
 // Boucle pilotee par l etat : entre deux rendus, soit la fenetre de decision
 // s ouvre pour Nangis en mode coach, soit un pas de simulation IA s execute.
 useEffect(() => {
@@ -1082,10 +1104,28 @@ useEffect(() => {
       const uiAction = describeAction(intent, current, holder.id)
       const contest = uiAction ? buildContest(uiAction, current) : null
       if (contest) {
-        setPendingContest(contest)
-        setAwaitingDecision(true)
-        awaitingDecisionRef.current = true
-        setDecisionLabel(`${holder.name} attaque — ${contest.defenderName} peut répondre, choisis la défense de Nangis`)
+        // P1 : le temps ralentit avant la fenetre — le coach voit le porteur
+        // arriver, la trajectoire reste affichee, puis la fenetre s'ouvre.
+        // Garde-fou : si une fenetre est deja ouverte, on laisse l'IA defendre.
+        if (awaitingDecisionRef.current || pendingContestRef.current) {
+          actionCountRef.current += 1
+          stallRef.current = 0
+          const auto = playAction(current, contestAction(current, intent), random)
+          if (auto.possessionChanged) possessionCountRef.current += 1
+          setFeedback(formatCausalFeedback(auto.event, auto.state))
+          syncState(auto.state)
+          checkMatchEnd(auto.state)
+          return
+        }
+        setDecisionLabel(`${holder.name} arrive — lecture de la défense…`)
+        setTimeout(() => {
+          if (awaitingDecisionRef.current) return
+          setPendingContest(contest)
+          pendingContestRef.current = contest
+          setAwaitingDecision(true)
+          awaitingDecisionRef.current = true
+          setDecisionLabel(`${holder.name} attaque — ${contest.defenderName} peut répondre, choisis la défense de Nangis`)
+        }, DEFENSIVE_SLOWDOWN_MS)
         return
       }
     }

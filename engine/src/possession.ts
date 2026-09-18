@@ -120,6 +120,25 @@ export function stepShapes(state: MatchState): ShapeStep {
     presser = pressingDefenderId(nextState, defendingTeam);
     defendingMoved = driftTeam(nextState, defendingTeam, system, { maxStep: 3, press: true, ballSideShift: 2.5 });
     attackingMoved = driftTeam(nextState, attackingTeam, 'attack', { maxStep: 2.2, keepIds: [holder.id] });
+    // Mouvement permanent sans ballon (P0) : une fois la forme atteinte, le
+    // drift ne bouge plus (cibles statiques). Chaque non-porteur ondule donc
+    // autour de sa forme — delta borne en sinus du compteur d'evenements
+    // (borne, deterministe, sans derive : la somme telescopique reste bornee).
+    // Le hand vit meme sans passe : appels, replacements, disponibilite.
+    const tick = nextState.events.length;
+    for (const player of Object.values(nextState.players)) {
+      if (player.team !== attackingTeam || !player.isOnCourt || player.role === 'goalkeeper') continue;
+      if (player.id === holder.id) continue;
+      let hash = 0;
+      for (let i = 0; i < player.id.length; i += 1) hash += player.id.charCodeAt(i);
+      const swayY = (Math.sin(tick * 0.7 + hash) - Math.sin((tick - 1) * 0.7 + hash)) * 0.9;
+      const swayX = (Math.cos(tick * 0.5 + hash * 1.7) - Math.cos((tick - 1) * 0.5 + hash * 1.7)) * 0.6;
+      player.position = {
+        x: Math.max(1, Math.min(39, player.position.x + swayX)),
+        y: Math.max(1, Math.min(19, player.position.y + swayY))
+      };
+      attackingMoved += Math.abs(swayY) + Math.abs(swayX);
+    }
 
     if (presser) {
       const defender = nextState.players[presser];

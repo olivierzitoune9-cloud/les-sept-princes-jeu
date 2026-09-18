@@ -106,4 +106,18 @@ Ce fichier trace les decisions qui structurent le projet. Une nouvelle decision 
 - Raison : fermer les ecarts E-011 (contestation inversee : le coach defendait pour l'adversaire pendant sa propre attaque), E-012 (pause forcee au debut de chaque possession adverse, contre le rythme du doc 05 §2-3), E-013 (options defensives sans sens hors de proximite, contrairement au doc 13 : le strict coute de la largeur seulement au contact) et E-014 (l'espace et l'intervalle, coeur du hand, etaient calcules par le moteur mais jamais montres).
 - Impact : `engine.ts` (`defensiveIntents` gaguee par la proximite), `spatial.ts` (`IntervalObservation.point` expose), `engine.test.ts` (test de proximite), `useMatchEngine.ts` (`buildContest` reserve a Nangis + gate moitie de terrain, suppression de la fenetre defensive forcee et du hack `actionCountRef = 1`, interception de contestation dans la boucle Lagny, `useLiveIntervals`), `App.tsx` (barre « defense de Nangis », message de transition, plus de bouton « Accelerer avec l'IA » hors attaque), `Field.tsx`/`fieldRenderer.ts` (halos d'intervalles), `SideTacticalPanel.tsx` (intervalles reels).
 
-Ajouter une entree avant toute modification de perimetre, de source, de regle de simulation ou de contrainte licite. Indiquer le document affecte et le test qui doit changer.
+## D-014 - P0 : mouvement permanent sans ballon + plan P0-P3 verrouillé
+
+- Date : 2026-09-18
+- Statut : adoptee (retour de test : joueurs figes sans passe ; doc 18 §3.1)
+- Decision : chaque pas de replacement en phase live fait onduler les non-porteurs de l'attaque autour de leur forme (delta borne en sinus du compteur d'evenements, deterministe, sans derive, seed-identique = meme resultat). Le terrain vit meme sans passe. Plan de refonte acte : P0 geometrie/phases (en cours, a finir), P1 temporalisation, P2 lisibilite du risque, P3 rendu doc 04 en dernier.
+- Raison : un terrain ou seuls les passes bougent n'est pas du hand (doc 01 §3 situations vivantes) ; P1-P3 resolvent les soucis restants constates depuis le dernier push.
+- Impact : `possession.ts` (stepShapes), `engine.test.ts` (test mouvement sans passe).
+
+## D-015 - P1 : temporalisation defensive + fenetres 2-4 options + preuve trajectoires
+
+- Date : 2026-09-18
+- Statut : adoptee (doc 18 §3.4-3.5, O-009 ; retour test : fenetre defensive de 0,5 s inexploitable, catalogue offensif illisible)
+- Decision : quand le porteur Lagny entre en zone de decision (moitie Nangis), le temps ralentit 1100 ms avec message de lecture avant d'ouvrir la fenetre de contestation ; garde-fou d'unicite (une seule fenetre a la fois, sinon l'IA defend) ; fenetre offensive limitee aux 4 meilleures estimations moteur ; les courses et croises se tracent en courbes pre-decision sur le terrain, preuve du trace style Inazuma Eleven DS/3DS (chemins au stylet, ordres passes/tirs/courses, duels tactiques — ici lignes et fleches abstraites, moteur seul decide). Question du trace libre laisse ouverte en O-011.
+- Raison : P1 = le coach a le temps de lire avant que la resolution ne se joue ; les options se voient ou elles vont.
+- Impact : `useMatchEngine.ts` (DEFENSIVE_SLOWDOWN_MS, pendingContestRef, OFFENSIVE_WINDOW_MAX), `fieldRenderer.ts` (courbes run/cross), `10` (O-011 creee).

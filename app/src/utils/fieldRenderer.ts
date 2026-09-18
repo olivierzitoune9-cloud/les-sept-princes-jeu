@@ -536,6 +536,32 @@ function drawTacticalTrajectories(
     ctx.fill()
   })
 
+  // Courses et croises (P1, preuve trajectoires) : l'intention de mouvement
+  // se trace AVANT la decision, comme le trace au stylet d'Inazuma Eleven —
+  // le coach voit ou le joueur veut aller, pas seulement ou il est.
+  trajectories.filter((t) => t.type === 'run' || t.type === 'cross').forEach((traj) => {
+    const isHovered = traj.actionId === hoveredActionId
+    const [fromX, fromY] = toCanvas(traj.from)
+    const [toX, toY] = toCanvas(traj.to)
+
+    const color = traj.risk === 'risky'
+      ? (isHovered ? '#f87171' : 'rgba(248, 113, 113, 0.7)')
+      : (isHovered ? '#38bdf8' : 'rgba(56, 189, 248, 0.7)')
+    ctx.strokeStyle = color
+    ctx.lineWidth = isHovered ? 3 : 1.8
+    ctx.setLineDash(isHovered ? [10, 3] : [7, 5])
+    ctx.beginPath()
+    ctx.moveTo(fromX, fromY)
+    // Courbe legere : la trajectoire respire, ce n'est pas un rail.
+    const bendX = (fromX + toX) / 2 + (toY - fromY) * 0.12
+    const bendY = (fromY + toY) / 2 - (toX - fromX) * 0.12
+    ctx.quadraticCurveTo(bendX, bendY, toX, toY)
+    ctx.stroke()
+    ctx.setLineDash([])
+
+    drawArrowHead(ctx, bendX, bendY, toX, toY, color, isHovered ? 9 : 7)
+  })
+
   ctx.restore()
 }
 

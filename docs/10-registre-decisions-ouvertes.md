@@ -62,6 +62,13 @@ Toute decision fermee doit etre ajoutee a `09-historique-decisions.md` avant d e
 - Contrainte : le porteur ne peut plus avancer a l'infini ; la perte de balle est explicable par sa cause.
 - Test : avancer sans dribble au-dela de 3 pas perd la balle avec la cause affichee.
 
+## O-011 - Trace pre-decision des trajectoires (style Inazuma Eleven)
+
+- Statut : preuve P1 en cours (recherche 2026-09-18, cf D-015)
+- Question : faut-il tracer les trajectoires voulues avant resolution (stylet Inazuma DS/3DS : chemins dessines, ordres passes/tirs/courses, duels tactiques elementaires) plutot que de les subir apres ?
+- Contrainte : licite (lignes et fleches abstraites seulement), moteur seul decide, l'interface ne fait que montrer l'intention.
+- Test : chaque option de la fenetre affiche sa trajectoire pre-decision ; le coach choisit en voyant ou ca va.
+
 ## O-009 - Pacing des fenetres defensives
 
 - Statut : a trancher en P1 (doc 18)

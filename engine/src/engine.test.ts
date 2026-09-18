@@ -468,6 +468,28 @@ describe('placement, defense et terrain', () => {
     expect(spread(current)).toBeLessThan(before);
   });
 
+  it('fait vivre les non-porteurs meme sans passe (mouvement permanent P0)', () => {
+    let state = installPossession(createPilotMatch(44), 'nangis', 'centre');
+    for (let step = 0; step < 12; step += 1) {
+      state = stepShapes(state).state;
+    }
+    // L attaque est installee : on joue une action non-passe (course porteur)
+    // et on verifie que les partenaires ont bouge sans aucune passe.
+    const before = structuredClone(state.players);
+    const holderId = state.ball.holderId;
+    const played = playAction(state, { type: 'run', actorId: holderId, targetPosition: { x: 24, y: 10 }, runKind: 'advance' }, new SeededRandom(999));
+    let movedTeammates = 0;
+    for (const [id, player] of Object.entries(played.state.players)) {
+      if (id === holderId || player.team !== 'nangis' || !player.isOnCourt || player.role === 'goalkeeper') continue;
+      const previous = before[id];
+      if (!previous) continue;
+      if (Math.hypot(player.position.x - previous.position.x, player.position.y - previous.position.y) > 0.05) {
+        movedTeammates += 1;
+      }
+    }
+    expect(movedTeammates).toBeGreaterThan(0);
+  });
+
   it('conteste chaque etape meme dans une sequence preparee', () => {
     const state = createPilotMatch(44);
     const result = executeSequence(state, [
