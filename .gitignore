@@ -42,3 +42,10 @@ engine/dist
 
 # Vercel
 .vercel
+
+t*.txt
+sum.txt
+lines.txt
+push.txt
+*.log
+engine/debug-shot.ts
