@@ -161,6 +161,23 @@ describe('pilot match engine', () => {
     expect(focused.length).toBeGreaterThan(0);
   });
 
+  it('gates defensive intents by proximity to the holder', () => {
+    const state = createPilotMatch(44);
+    // Defenseur loin du porteur (doc 00/13 : une option a 20 m n'a pas de
+    // sens) : la seule consigne individuelle valable est le repli.
+    state.players.kael!.position = { x: 34, y: 16 };
+    const far = defensiveIntents(state, 'lagny');
+    expect(far.length).toBe(1);
+    expect(far[0]!.type).toBe('retreat');
+    expect(far[0]!.actorId).toBe('karim');
+    // Pres du porteur : marquer, aider, couper sont de retour.
+    state.players.kael!.position = { x: 22, y: 10 };
+    const near = defensiveIntents(state, 'lagny');
+    expect(near.some((intent) => intent.type === 'mark')).toBe(true);
+    expect(near.some((intent) => intent.type === 'help')).toBe(true);
+    expect(near.some((intent) => intent.type === 'intercept')).toBe(true);
+  });
+
   it('interrupts a prepared sequence when the defense changes the situation', () => {
     const state = createPilotMatch(44);
     const sequence = executeSequence(state, [

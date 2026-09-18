@@ -2,12 +2,13 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { createPilotMatch } from '@engine/match.js'
 import { chooseNextAction } from '@engine/ai.js'
 import { contestAction, defensiveIntents, getSituation, shotProfile } from '@engine/engine.js'
+import { observeIntervals } from '@engine/spatial.js'
 import { playAction, installPossession } from '@engine/possession.js'
 import { changeSystem, callTimeout } from '@engine/coaching.js'
 import { SeededRandom } from '@engine/random.js'
 import { shotContext } from '@engine/court.js'
 import type { ActionIntent, DefensiveSystem, MatchState, TeamId } from '@engine/types.js'
-import type { TacticalTrajectory } from '../utils/fieldRenderer'
+import type { TacticalTrajectory, OpenIntervalMarker } from '../utils/fieldRenderer'
 import type { ClimaxEvent } from '../components/ActionClimaxOverlay'
 import type { DuelContext } from '../components/SideTacticalPanel'
 
@@ -81,6 +82,16 @@ const DEFAULT_SEED = 44512
 
 const POSSESSION_LIMIT = 60
 const TIME_LIMIT = 3600
+
+// Le handball est un sport d'espace (docs 01 §5, 04, 05 §5) : les decisions
+// defensives individuelles n'ont de sens que dans la moitie de terrain a
+// defendre. Nangis defend devant x < 20 ; devant x > 20 on laisse Lagny
+// s'installer sans fenetres de decision hors sujet.
+function ballInNangisHalf(state: MatchState): boolean {
+  const holder = state.players[state.ball.holderId]
+  if (!holder) return false
+  return holder.position.x <= 20
+}
 
 const playerNumbers: Record<string, number> = {
   pierre: 11, erwan: 9, yanis: 7, aaron: 8, elian: 13, edgar: 6, liam: 1,
@@ -376,9 +387,13 @@ export default function useMatchEngine() {
     }
   }, [])
 
-  // Fenetre de contestation : quand Nangis attaque, le coach choisit d'abord la
-  // reponse du defenseur le plus proche (doc 00 : gardien ou bloc au bon moment),
-  // puis l'action se resout. Sans choix, l'automate conteste via contestAction.
+  // Fenetre de contestation (doc 09 D-011 revue D-013) : quand LAGNY attaque,
+  // le coach de Nangis choisit la reponse du defenseur le plus proche avant
+  // resolution (doc 00 : gardien ou bloc au bon moment). Quand NANGIS attaque,
+  // la defense adverse estpilotee par l'automate contestAction (doc 05 §103 :
+  // le coach ne lit pas les intentions defensives adverses). La fenetre n'a de
+  // sens que si Lagny est installee dans la moitie Nangis : on ne propose pas
+  // de marquer un porteur a 20 m de la zone a defenidre (docs 00/13).
   function buildContest(action: Action, state: MatchState): PendingContest | null {
   const intent = action.intent
   if (intent.type !== 'duel' && intent.type !== 'dribble' && intent.type !== 'shoot' && intent.type !== 'pass') return null
@@ -386,7 +401,9 @@ export default function useMatchEngine() {
   const auto = contestAction(state, intent)
   if (!auto.contestedBy || !auto.contestAction) return null
   const defender = state.players[auto.contestedBy]
-  if (!defender || defender.team !== 'lagny') return null
+  if (!defender || defender.team !== 'nangis') return null
+  const holder = state.players[state.ball.holderId]
+  if (!holder || holder.team !== 'lagny' || !ballInNangisHalf(state)) return null
   const base: Array<{ key: NonNullable<ActionIntent['contestAction']>; label: string; detail: string }> =
     intent.type === 'shoot'
       ? [
@@ -510,10 +527,19 @@ function describeAction(intent: ActionIntent, state: MatchState, playerId: strin
   switch (intent.type) {
     case 'pass': {
       const pressured = (state.players[intent.actorId ?? '']?.pressure ?? 0) > 55
+      // L'espace d'abord (docs 01, 04, 13) : une passe vaut par l'intervalle
+      // qu'elle installe devant le receveur, pas par le seul destinateur.
+      let space: string | null = null
+      if (target && actor) {
+        const inFront = observeIntervals(state, actor.team)
+          .filter((interval) => Math.hypot(interval.point.x - target.position.x, interval.point.y - target.position.y) <= 5)
+          .sort((a, b) => b.openness - a.openness)[0]
+        if (inFront && inFront.openness > 0.55) space = ` dans l'intervalle ${inFront.id}`
+      }
       return {
         ...base,
         name: `Passe à ${target?.name ?? '?'}`,
-        description: pressured ? 'Passe sous pression, à doser' : 'Passe vers un coéquipier démarqué'
+        description: pressured ? 'Passe sous pression, à doser' : `Passe vers un coéquipier${space ?? ' démarqué'}`
       }
     }
     case 'duel':
@@ -688,11 +714,13 @@ const refreshActions = useCallback((state: MatchState, focusId?: string | null) 
     actionsRef.current = list
     return
   }
-  // Phase defensive (doc 17, ecart E-001) : le moteur fournit les intents de
-  // marquage strict et d aide. L interface ne recode aucune decision.
+  // Phase defensive (doc 17, ecart E-001, gate D-013) : le moteur fournit les
+  // intents de marquage strict et d aide. L interface ne recode aucune decision.
+  // Mais une consigne individuelle n'a de sens que si Lagny est installee dans
+  // la moitie Nangis : en transition adverse, le bloc recule tout seul.
   const focus = focusId ? state.players[focusId] : null
   const usable = focus && focus.team === 'nangis' && focus.isOnCourt && focus.role !== 'goalkeeper' ? focus : null
-  if (!usable) {
+  if (!usable || !ballInNangisHalf(state)) {
     setAvailableActions([])
     actionsRef.current = []
     return
@@ -822,20 +850,12 @@ const refreshActions = useCallback((state: MatchState, focusId?: string | null) 
     [checkMatchEnd, syncState]
   )
 
-  // Jouer une action du porteur Nangis via le moteur, jamais recodee.
+  // Jouer une action du porteur Nangis via le moteur, jamais recodee. La
+  // defense Lagny repond automatiquement via contestAction (doc 05 §103) :
+  // la fenetre de contestation n'appartient qu'au camp du coach (D-013).
   const performAction = useCallback((action: Action) => {
     const current = engineRef.current
     if (!current) return
-    // Attaque Nangis contestable : le coach choisit d'abord la reponse du
-    // defenseur, puis ca se resout (mandat pilote-sim, doc 00).
-    const contest = buildContest(action, current)
-    if (contest) {
-      setPendingContest(contest)
-      setAwaitingDecision(true)
-      awaitingDecisionRef.current = true
-      setDecisionLabel(`${contest.defenderName} peut repondre — choisis la defense avant ${action.name}`)
-      return
-    }
     setPendingContest(null)
     setAwaitingDecision(false)
     awaitingDecisionRef.current = false
@@ -860,6 +880,9 @@ const refreshActions = useCallback((state: MatchState, focusId?: string | null) 
       actionCountRef.current += 1
       const random = new SeededRandom(current.seed + current.events.length)
       const played = playAction(current, contestedIntent, random)
+      if (played.possessionChanged) {
+        possessionCountRef.current += 1
+      }
       handlePlayedActionWithDrama(current, played)
       return null
     })
@@ -880,6 +903,9 @@ const refreshActions = useCallback((state: MatchState, focusId?: string | null) 
       actionCountRef.current += 1
       const random = new SeededRandom(current.seed + current.events.length)
       const played = playAction(current, contestedIntent, random)
+      if (played.possessionChanged) {
+        possessionCountRef.current += 1
+      }
       handlePlayedActionWithDrama(current, played)
       return null
     })
@@ -887,39 +913,11 @@ const refreshActions = useCallback((state: MatchState, focusId?: string | null) 
 
   // Fenetre de decision : le porteur Nangis dispose des actions du moteur.
   // On sélectionne automatiquement le porteur pour que l'ActionPanel soit immédiatement affiché.
+  // (D-013 : plus de fenetre defensive forcee ; la defense se joue par les
+  // fenetres de contestation et par le clic sur un defenseur Nangis.)
   const openDecisionWindow = useCallback((state: MatchState) => {
     const holder = state.players[state.ball.holderId]
-    if (!holder) return false
-
-    if (holder.team === 'lagny') {
-      // Fenetre defensive (doc 17, ecart E-001) : une fois par possession
-      // adverse, le coach choisit le marquage strict ou l aide.
-      if (controlMode !== 'coach') return false
-      const defenders = Object.values(state.players)
-        .filter((p) => p.team === 'nangis' && p.isOnCourt && p.role !== 'goalkeeper')
-        .sort((a, b) =>
-          Math.hypot(a.position.x - holder.position.x, a.position.y - holder.position.y) -
-          Math.hypot(b.position.x - holder.position.x, b.position.y - holder.position.y)
-        )
-      const defender = defenders[0]
-      if (!defender) return false
-      setSelectedPlayer({
-        id: defender.id,
-        name: defender.name,
-        number: playerNumbers[defender.id] ?? 99,
-        team: defender.team,
-        position: defender.position,
-        role: roleLabels[defender.role],
-        hasBall: false,
-        fatigue: Math.round(defender.energy),
-        pressure: Math.round(defender.pressure)
-      })
-      setAwaitingDecision(true)
-      awaitingDecisionRef.current = true
-      setDecisionLabel(`Lagny attaque par ${holder.name} — organise la défense avec ${defender.name}`)
-      refreshActions(state, defender.id)
-      return true
-    }
+    if (!holder || holder.team !== 'nangis') return false
 
     const uiHolder: UIPlayer = {
       id: holder.id,
@@ -940,56 +938,24 @@ const refreshActions = useCallback((state: MatchState, focusId?: string | null) 
     return true
   }, [refreshActions, controlMode])
 
-  // Demander a l IA de trancher : soit pour Nangis dans la fenetre ouverte, soit pour accelerer la sequence.
+  // Demander a l IA de trancher pour Nangis dans la fenetre offensive ouverte.
+  // (D-013 : la defense Lagny n'a jamais besoin d'un clic — elle joue en continu.)
   const letAiDecide = useCallback(() => {
     const current = engineRef.current
     if (!current || isTransitioningRef.current) return
 
-    if (awaitingDecisionRef.current) {
-      const holderNow = current.players[current.ball.holderId]
-      if (holderNow && holderNow.team === 'lagny') {
-        // En defense, « IA décide » ferme la fenetre et fait jouer Lagny :
-        // on force le compteur pour ne pas rouvrir la fenetre defensive.
-        setAwaitingDecision(false)
-        awaitingDecisionRef.current = false
-        setDecisionLabel(null)
-        actionCountRef.current = 1
-      } else {
-        const random = new SeededRandom(current.seed + current.events.length + 77)
-        const trace = chooseNextAction(current, 'nangis', random, actionCountRef.current)
-        setAwaitingDecision(false)
-        awaitingDecisionRef.current = false
-        setDecisionLabel(null)
-        if (!trace) return
-        actionCountRef.current += 1
-        const played = playAction(current, trace.action, random)
-        handlePlayedActionWithDrama(current, played)
-        return
-      }
-    }
-
-    // Si Lagny a le ballon (phase défensive), avancer immédiatement d'un pas d'action
-    const holder = current.players[current.ball.holderId]
-    if (!holder) return
-    const random = new SeededRandom(current.seed + current.events.length * 31 + actionCountRef.current)
-    const trace = chooseNextAction(current, holder.team, random, actionCountRef.current)
-    const intent = trace?.action ?? fallbackAction(current)
-    if (!intent) return
+    const holderNow = current.players[current.ball.holderId]
+    if (!holderNow || holderNow.team !== 'nangis') return
+    const random = new SeededRandom(current.seed + current.events.length + 77)
+    const trace = chooseNextAction(current, 'nangis', random, actionCountRef.current)
+    setAwaitingDecision(false)
+    awaitingDecisionRef.current = false
+    setDecisionLabel(null)
+    if (!trace) return
     actionCountRef.current += 1
-    const played = playAction(current, intent, random)
-    if (played.possessionChanged) {
-      possessionCountRef.current += 1
-      lastAttackingTeamRef.current = opposing(holder.team)
-      actionCountRef.current = 0
-    }
-    if (played.event.type === 'shoot' || (played.event.type === 'pass' && played.event.result === 'intercepted')) {
-      handlePlayedActionWithDrama(current, played)
-    } else {
-      setFeedback(formatCausalFeedback(played.event, played.state))
-      syncState(played.state)
-      checkMatchEnd(played.state)
-    }
-  }, [handlePlayedActionWithDrama, syncState, checkMatchEnd])
+    const played = playAction(current, trace.action, random)
+    handlePlayedActionWithDrama(current, played)
+  }, [handlePlayedActionWithDrama])
 // --- partie 3 : boucle de simulation ---
 
 function opposing(team: TeamId): TeamId {
@@ -1081,9 +1047,10 @@ useEffect(() => {
 
   if (controlMode === 'coach') {
     const holder = state.players[state.ball.holderId]
-    // Fenetre offensive Nangis, ou fenetre defensive une fois par possession
-    // Lagny (doc 05 : pauses sur les situations significatives).
-    if (holder && (holder.team === 'nangis' || actionCountRef.current === 0)) {
+    // Fenetre offensive Nangis uniquement (D-013) : en defense, le rythme reste
+    // la simulation (doc 05 §2-3) et la contestation ouvre la seule pause
+    // defensive legitime. Plus jamais de pause forcee au debut de possession.
+    if (holder && holder.team === 'nangis') {
       openDecisionWindow(state)
       return
     }
@@ -1106,6 +1073,21 @@ useEffect(() => {
         syncState(installPossession(current, opposing(holder.team), 'interception'))
       }
       return
+    }
+    // Lagny attaque dans la moitie Nangis et mode coach : l'action offensive
+    // significative (duel, dribble, tir, passe contestable) ouvre la fenetre
+    // de contestation du defenseur Nangis (doc 05 §2 : situation significative,
+    // D-013 : la defense du coach est jouable). Sinon resolution automatique.
+    if (controlMode === 'coach' && holder.team === 'lagny' && ballInNangisHalf(current)) {
+      const uiAction = describeAction(intent, current, holder.id)
+      const contest = uiAction ? buildContest(uiAction, current) : null
+      if (contest) {
+        setPendingContest(contest)
+        setAwaitingDecision(true)
+        awaitingDecisionRef.current = true
+        setDecisionLabel(`${holder.name} attaque — ${contest.defenderName} peut répondre, choisis la défense de Nangis`)
+        return
+      }
     }
     actionCountRef.current += 1
     stallRef.current = 0
@@ -1452,4 +1434,19 @@ return {
   activeDuel,
   liveStats
 }
+}
+
+// Lecture de l'espace (memo spatial du moteur) : les intervalles reels du
+// moment, du point de vue de l'equipe en possession. Le handball est un sport
+// d'espace et d'intervalle (docs 01, 04, 05 §5, 07) : l'interface montre ou
+// l'espace vit, elle n'invente rien.
+export function useLiveIntervals(engineState: MatchState | null): OpenIntervalMarker[] {
+  return useMemo(() => {
+    if (!engineState) return []
+    const holder = engineState.players[engineState.ball.holderId]
+    const team = holder?.team ?? 'nangis'
+    return observeIntervals(engineState, team)
+      .filter((interval) => interval.openness > 0.45)
+      .map((interval) => ({ id: interval.id, point: interval.point, openness: interval.openness }))
+  }, [engineState])
 }

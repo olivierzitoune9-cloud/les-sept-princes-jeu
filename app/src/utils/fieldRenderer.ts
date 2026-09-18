@@ -47,6 +47,15 @@ interface Ball {
   position: { x: number; y: number }
 }
 
+// Intervalles ouverts calcules par le moteur (memo spatial) : le handball est
+// un sport d'espaces et d'intervalles (docs 01 §5, 04, 05 §5, 07 §2), le
+// terrain doit montrer ou l'espace vit, avec une variation discrete de teinte.
+export interface OpenIntervalMarker {
+  id: string
+  point: { x: number; y: number }
+  openness: number
+}
+
 // Rendu du terrain : la geometrie vient integralement du moteur. L interface
 // ne recalcule ni les zones, ni les buts, ni les distances de tir.
 export function drawField(
@@ -56,7 +65,8 @@ export function drawField(
   selectedPlayerId: string | null,
   pxm: number,
   trajectories: TacticalTrajectory[] = [],
-  hoveredActionId: string | null = null
+  hoveredActionId: string | null = null,
+  openIntervals: OpenIntervalMarker[] = []
 ) {
   const toCanvas = (p: { x: number; y: number }): [number, number] =>
     courtToCanvas(p.x, p.y, pxm)
@@ -127,6 +137,30 @@ export function drawField(
     ctx.moveTo(x, y - 5)
     ctx.lineTo(x, y + 5)
     ctx.stroke()
+  }
+
+  // Intervalles ouverts du moment (memo spatial du moteur) : halo discrete
+  // sous les jetons, uniquement quand l'espace est vraiment vivant.
+  for (const interval of openIntervals) {
+    const [x, y] = toCanvas(interval.point)
+    const strength = Math.max(0.15, Math.min(1, (interval.openness - 0.35) / 0.65))
+    const radius = Math.max(14, 4.2 * pxm)
+    const gradient = ctx.createRadialGradient(x, y, 2, x, y, radius)
+    gradient.addColorStop(0, `rgba(94, 234, 212, ${0.16 * strength})`)
+    gradient.addColorStop(1, 'rgba(94, 234, 212, 0)')
+    ctx.fillStyle = gradient
+    ctx.beginPath()
+    ctx.arc(x, y, radius, 0, Math.PI * 2)
+    ctx.fill()
+    if (strength >= 0.55) {
+      ctx.strokeStyle = `rgba(94, 234, 212, ${0.28 * strength})`
+      ctx.lineWidth = 1
+      ctx.setLineDash([3, 4])
+      ctx.beginPath()
+      ctx.arc(x, y, radius * 0.55, 0, Math.PI * 2)
+      ctx.stroke()
+      ctx.setLineDash([])
+    }
   }
 
   // Cages.

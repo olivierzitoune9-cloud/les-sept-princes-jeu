@@ -686,29 +686,21 @@ export function defensiveIntents(state: MatchState, defendingTeam: TeamId, focus
   if (!defender) {
     return [];
   }
-  const attackers = Object.values(state.players)
-    .filter((player) => player.team !== defendingTeam && player.isOnCourt && player.role !== 'goalkeeper' && player.id !== holder.id)
-    .sort((first, second) => distance(first.position, defender.position) - distance(second.position, defender.position));
   const intents: ActionIntent[] = [];
-  if (distance(defender.position, holder.position) <= 6) {
-    intents.push({ type: 'mark', actorId: defender.id, targetId: holder.id });
-  } else {
-    const fallback = attackers[0];
-    if (fallback) {
-      intents.push({ type: 'mark', actorId: defender.id, targetId: fallback.id });
-    }
-  }
-  intents.push({ type: 'help', actorId: defender.id, targetId: holder.id });
-  // Sortie agressive quand le porteur est a portee, repli quand il est loin,
-  // interception quand la ligne est lisible : le coach defend vraiment.
+  // Proximite d'abord (docs 00 et 13 : chaque consigne a une distance de sens).
+  // Pres du porteur : marquer, aider, couper la ligne. Loin : la seule consigne
+  // individuelle valable est le repli vers son but. Une option offre a 20 m du
+  // porteur n'a aucun sens de handball.
   const holderDistance = distance(defender.position, holder.position);
-  if (holderDistance <= 4) {
-    intents.push({ type: 'press', actorId: defender.id, targetId: holder.id });
-  } else if (holderDistance >= 8) {
-    intents.push({ type: 'retreat', actorId: defender.id, targetId: holder.id });
-  }
-  if (attackers[0]) {
+  if (holderDistance <= 6) {
+    intents.push({ type: 'mark', actorId: defender.id, targetId: holder.id });
+    intents.push({ type: 'help', actorId: defender.id, targetId: holder.id });
     intents.push({ type: 'intercept', actorId: defender.id, targetId: holder.id });
+    if (holderDistance <= 4) {
+      intents.push({ type: 'press', actorId: defender.id, targetId: holder.id });
+    }
+  } else {
+    intents.push({ type: 'retreat', actorId: defender.id, targetId: holder.id });
   }
   return intents;
 }

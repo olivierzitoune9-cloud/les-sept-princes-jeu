@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import type { LiveMatchStats } from '../hooks/useMatchEngine'
+import type { OpenIntervalMarker } from '../utils/fieldRenderer'
 import './SideTacticalPanel.css'
 
 export interface DuelContext {
@@ -11,7 +12,7 @@ export interface DuelContext {
 interface SideTacticalPanelProps {
   duel?: DuelContext | null
   systemLagny: string
-  openIntervals?: string[]
+  openIntervals?: OpenIntervalMarker[]
   threats?: string[]
   onExecuteDuel?: (
     duelActionId: string,
@@ -23,8 +24,8 @@ interface SideTacticalPanelProps {
 const SideTacticalPanel: React.FC<SideTacticalPanelProps> = ({
   duel,
   systemLagny,
-  openIntervals = ['Intervalle 2-3'],
-  threats = ['Erwan (ailier ouvert)', 'Aaron (en appui)'],
+  openIntervals = [],
+  threats = [],
   onExecuteDuel,
   liveStats
 }) => {
@@ -237,26 +238,55 @@ const SideTacticalPanel: React.FC<SideTacticalPanelProps> = ({
 
           <div className="sit-section">
             <span className="section-label">ESPACES EXPLOITABLES</span>
-            <ul className="sit-list">
-              {openIntervals.map((interval, i) => (
-                <li key={i} className="sit-item green">
+            {/* Intervalles reels du memo spatial du moteur : le handball est un
+                sport d'espace et d'intervalle (docs 01, 04, 05 §5, 07 §2). */}
+            {openIntervals.length > 0 ? (
+              <ul className="sit-list">
+                {openIntervals
+                  .slice()
+                  .sort((a, b) => b.openness - a.openness)
+                  .map((interval) => (
+                    <li
+                      key={interval.id}
+                      className={`sit-item ${interval.openness > 0.65 ? 'green' : 'blue'}`}
+                    >
+                      <span className="bullet">●</span>
+                      <span>
+                        Intervalle {interval.id} ·{' '}
+                        {interval.openness > 0.65 ? 'ouvert' : 'contestable'}
+                      </span>
+                    </li>
+                  ))}
+              </ul>
+            ) : (
+              <ul className="sit-list">
+                <li className="sit-item">
                   <span className="bullet">●</span>
-                  <span>{interval}</span>
+                  <span>Bloc compact : aucun intervalle ouvert, créer l'espace</span>
                 </li>
-              ))}
-            </ul>
+              </ul>
+            )}
           </div>
 
           <div className="sit-section">
             <span className="section-label">SOLUTIONS DISPONIBLES</span>
-            <ul className="sit-list">
-              {threats.map((threat, i) => (
-                <li key={i} className="sit-item blue">
+            {threats.length > 0 ? (
+              <ul className="sit-list">
+                {threats.map((threat, i) => (
+                  <li key={i} className="sit-item blue">
+                    <span className="bullet">●</span>
+                    <span>{threat}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <ul className="sit-list">
+                <li className="sit-item">
                   <span className="bullet">●</span>
-                  <span>{threat}</span>
+                  <span>Aucune menace franche — fixer et décaler</span>
                 </li>
-              ))}
-            </ul>
+              </ul>
+            )}
           </div>
         </div>
       )}

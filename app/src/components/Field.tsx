@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { drawField, type TacticalTrajectory } from '../utils/fieldRenderer'
+import { drawField, type TacticalTrajectory, type OpenIntervalMarker } from '../utils/fieldRenderer'
 import {
   CANVAS_WIDTH_METRES,
   CANVAS_HEIGHT_METRES,
@@ -35,6 +35,7 @@ interface FieldProps {
   selectedPlayer: string | null
   trajectories?: TacticalTrajectory[]
   hoveredActionId?: string | null
+  openIntervals?: OpenIntervalMarker[]
   onPlayerSelect: (playerId: string) => void
   onTrajectorySelect?: (actionId: string) => void
 }
@@ -47,6 +48,7 @@ const Field: React.FC<FieldProps> = ({
   selectedPlayer,
   trajectories = [],
   hoveredActionId = null,
+  openIntervals = [],
   onPlayerSelect,
   onTrajectorySelect
 }) => {
@@ -153,6 +155,7 @@ const Field: React.FC<FieldProps> = ({
         }
       }) ?? []
 
+      const openIntervalsRef = openIntervals
       drawField(
         ctx,
         animatedPlayers,
@@ -160,7 +163,8 @@ const Field: React.FC<FieldProps> = ({
         selectedPlayer,
         pxm,
         trajectoriesRef.current,
-        hoveredActionIdRef.current
+        hoveredActionIdRef.current,
+        openIntervalsRef
       )
 
       animationFrameRef.current = requestAnimationFrame(animate)
@@ -173,7 +177,7 @@ const Field: React.FC<FieldProps> = ({
         cancelAnimationFrame(animationFrameRef.current)
       }
     }
-  }, [matchState, selectedPlayer, pxm])
+  }, [matchState, selectedPlayer, pxm, openIntervals])
 
   // Clic : conversion inverse du canvas vers le terrain, en metres.
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {

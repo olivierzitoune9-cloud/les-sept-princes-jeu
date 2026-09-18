@@ -86,6 +86,27 @@ Retour du coach : tirs trop risqués et sans distance, pas de variété (pas de 
 ### Leçon de session
 5. Un lot d'édits étalé (croisé, causes, interface) doit être revalidé par la suite complète *avant* d'être déclaré clos : 5 échecs ont survécu au commit logique, fermés par une passe de consolidation dédiée (D-012).
 
+## Session 4 — 18 septembre 2026 (soir) : passe PILOTE-SIM 2 — défense du coach, rythme, espace
+
+### 1. Mandat
+Retour du coach : en phase offensive, l'écran lui demande de choisir la défense **adverse** (inversion) ; quand Lagny a le ballon, l'attaque ne démarre pas sans cliquer « Laisser l'IA jouer » (pas de rythme) ; quand l'IA attaque, aucune option défensive pour le coach ; « j'ai plus de contrôle défensif sur l'équipe adverse que sur la mienne » ; les options défensives ignorent la proximité (options absurdes quand le ballon est dans la moitié Lagny) ; « le jeu n'imprime pas que le handball est un sport d'espace et d'intervalle ». Consigne permanente : push à chaque fin de session, remplir l'historique et les dossiers de session.
+
+### 2. Audit (docs fondateurs)
+- Espace/intervalle : memo architecte (« intervalles dynamiques, pas malus statiques »), doc 13 (intervalle attaqué et son état), doc 05 §5/§20-21/§103, doc 07 §2 (teinte discrète), doc 15 (profondeur/largeur/aide/dissuasion).
+- Constat clé : `observeIntervals` (moteur) existait mais **n'était jamais consommé** — panneau avec « Intervalle 2-3 » codé en dur.
+- Quatre écarts nommés E-011 à E-014 dans `17`.
+
+### 3. Corrections (D-013)
+- **E-011 contestation inversée** : la fenêtre ne s'ouvre que pour la défense de **Nangis** ; quand Lagny attaque dans la moitié Nangis, la boucle interpelle `contestAction` et propose la réponse du défenseur Nangis ; quand Nangis attaque, l'automate défend en silence (doc 05 §103).
+- **E-012 rythme** : suppression de la pause forcée en début de possession adverse et du hack `actionCountRef = 1` ; Lagny joue en continu ; le coach défend par les fenêtres de contest et le clic défenseur (non bloquant) ; bouton « Accélérer avec l'IA » retiré du pied de page.
+- **E-013 proximité** : `defensiveIntents` gagée par la distance (mark/help/intercept ≤ 6 m du porteur, press ≤ 4 m, repli seul au-delà) ; dock défensif et contestation désactivés hors moitié Nangis (porteur x ≤ 20).
+- **E-014 espace visible** : vrais intervalles dans « ESPACES EXPLOITABLES » (ouvert/contestable), halos discrets sur le terrain (`OpenIntervalMarker`), descriptions de passes ancrées (« dans l'intervalle 2-3 »).
+
+### 4. Validation
+- Build moteur exit 0 ; **37/37 tests vitest** (nouveau test de proximité) ; typecheck app 0 erreur.
+- D-013 inscrite dans `09`, suivi E-011→E-014 dans `17`. HISTORIQUE_SESSION et STATUS tenus.
+- Limites assumées : la fenêtre de contestation attend le choix (pas d'auto-résolution au timeout) ; « SOLUTIONS DISPONIBLES » du panneau honnête mais pas encore calculée.
+
 ## Leçons de session
 
 1. Un déploiement rouge n'implique pas un bug de code : vérifier d'abord `git log origin/main -1`.

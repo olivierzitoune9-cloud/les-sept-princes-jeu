@@ -7,6 +7,8 @@ export interface IntervalObservation {
   openness: number;
   defenders: string[];
   reason: string;
+  // Point geometrique de l'intervalle sur le terrain (memo spatial).
+  point: Vector2;
 }
 
 function attackingDirection(team: TeamId): number {
@@ -44,7 +46,8 @@ export function observeIntervals(state: MatchState, attackingTeam: TeamId): Inte
       id,
       openness,
       defenders: nearby.map((item) => item.defender.id),
-      reason: openness > 0.65 ? 'space available' : openness > 0.35 ? 'help possible' : 'compact coverage'
+      reason: openness > 0.65 ? 'space available' : openness > 0.35 ? 'help possible' : 'compact coverage',
+      point
     };
   });
 }

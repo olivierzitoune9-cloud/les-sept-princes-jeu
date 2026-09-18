@@ -1,5 +1,7 @@
 # Status du projet — 18 septembre 2026 (session refonte interface)
 
+> **Mise à jour session 4 (soir)** : passe PILOTE-SIM 2 (D-013). La défense appartient au coach de Nangis — la fenêtre de contestation ne s'ouvre plus que quand Nangis défend (plus jamais pour choisir la défense adverse). Lagny attaque en continu (plus de pause forcée ni de bouton bloquant) ; le coach défend par les fenêtres de contest (duel/tir/dribble/passe adverse installée dans sa moitié) et en cliquant un défenseur. Les options défensives sont gagées par la proximité (≤ 6 m ; presser ≤ 4 m ; repli sinon). L'espace est enfin visible : vrais intervalles du moteur dans le panneau latéral, halos discrets sur le terrain, passes décrites par l'intervalle devant le receveur. Moteur 37/37 tests, typecheck app 0 erreur. Détails : `HISTORIQUE_SESSION.md` session 4, `docs/09` D-013, `docs/17` E-011→E-014.
+
 ## ⚡ Résumé en 10 lignes
 
 1. **Déploiement Vercel : RÉSOLU.** La cause était un commit local non poussé (`b19c4bb`), pas le code. Le build local avec la commande exacte de Vercel passe (`npm run build:all`, exit 0).

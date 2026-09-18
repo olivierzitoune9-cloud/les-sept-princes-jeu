@@ -6,7 +6,7 @@ import ActionDock from './components/ActionDock'
 import SideTacticalPanel from './components/SideTacticalPanel'
 import ActionClimaxOverlay from './components/ActionClimaxOverlay'
 import MatchReport from './components/MatchReport'
-import useMatchEngine from './hooks/useMatchEngine'
+import useMatchEngine, { useLiveIntervals } from './hooks/useMatchEngine'
 
 function App() {
   const {
@@ -41,6 +41,11 @@ function App() {
   } = useMatchEngine()
 
   const [showReport, setShowReport] = useState(false)
+
+  // Lecture de l'espace : les intervalles reels du moteur (memo spatial).
+  const openIntervals = useLiveIntervals(engineState)
+  // L'attaque Lagny est installee quand son porteur est dans la moitie Nangis.
+  const lagnyInstalled = (matchState?.players.find((p) => p.hasBall && p.team === 'lagny')?.position.x ?? 40) <= 20
 
   const handleShowReport = () => {
     setShowReport(true)
@@ -97,6 +102,7 @@ function App() {
             selectedPlayer={activePlayer?.id || null}
             trajectories={trajectories}
             hoveredActionId={hoveredActionId}
+            openIntervals={openIntervals}
             onPlayerSelect={selectPlayer}
             onTrajectorySelect={executeAction}
           />
@@ -106,6 +112,7 @@ function App() {
         <SideTacticalPanel
           duel={activeDuel}
           systemLagny={matchState?.systems.lagny ?? '6-0'}
+          openIntervals={openIntervals}
           onExecuteDuel={executeAction}
         />
       </main>
@@ -114,7 +121,7 @@ function App() {
       {pendingContest ? (
         <footer className="action-dock-idle contest-bar">
           <div className="idle-msg">
-            {pendingContest.defenderName} répond à {pendingContest.action.name} — choisis la défense
+            {pendingContest.defenderName} répond à {pendingContest.action.name} — défense de Nangis
           </div>
           <div className="contest-options">
             {pendingContest.options.map((option) => (
@@ -139,12 +146,11 @@ function App() {
         <footer className="action-dock-idle">
           <div className="idle-msg">
             {matchState?.possession === 'lagny'
-              ? 'Lagny attaque · clique un défenseur pour marquer ou aider'
+              ? openIntervals.length > 0 || lagnyInstalled
+                ? 'Lagny attaque · clique un défenseur Nangis pour défendre'
+                : 'Lagny en transition · le bloc de Nangis recule'
               : 'En attente de la prochaine situation...'}
           </div>
-          <button className="idle-ai-btn" onClick={letAiDecide}>
-            ⚡ Accélérer avec l'IA
-          </button>
         </footer>
       )}
 
