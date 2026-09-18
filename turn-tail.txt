@@ -1,0 +1,68 @@
+﻿    }
+  }
+  const meta = DEFENSE_TURN_ORDERS.find((entry) => entry.order === blind.decision) ?? DEFENSE_TURN_ORDERS[0]!;
+  const choice: DefenseTurnChoice = {
+    order: meta.order,
+    defenderId: blind.defenderId,
+    label: meta.label,
+    detail: meta.detail
+  };
+  if (blind.helperId) choice.helperId = blind.helperId;
+  return choice;
+}
+
+export interface TurnResolution {
+  state: MatchState;
+  event: MatchEvent;
+  initiative: Initiative;
+  defense: DefenseTurnChoice;
+  possessionChanged: boolean;
+  restart?: RestartKind;
+}
+
+// Une manche complete : ton geste + l'ordre adverse, resolus ensemble.
+// L'initiative ne change pas qui est le meilleur : elle change qui impose son
+// tempo. Le defenseur qui lit avant toi pese 1.35 fois plus ; battu au premier
+// pas, il pese 0.7.
+export function resolveTurn(
+  state: MatchState,
+  attack: ActionIntent,
+  defense: DefenseTurnChoice,
+  random: SeededRandom
+): TurnResolution {
+  const attacker = state.players[attack.actorId];
+  const defender = state.players[defense.defenderId];
+  const initiative: Initiative = attacker && defender
+    ? resolveInitiative(attacker, defender, random)
+    : { side: 'attack', attackerValue: 0, defenderValue: 0, reason: 'adversaire introuvable' };
+
+  const contested: ActionIntent = {
+    ...attack,
+    defenseDecision: defense.order,
+    contestedBy: defense.defenderId,
+    contestAction: defenseOrderToContest(defense.order),
+    orderScale: initiativeScale(initiative)
+  };
+  if (defense.helperId) contested.helperId = defense.helperId;
+
+  const played = playAction(state, contested, random);
+  const resolution: TurnResolution = {
+    state: played.state,
+    event: played.event,
+    initiative,
+    defense,
+    possessionChanged: played.possessionChanged
+  };
+  if (played.restart) resolution.restart = played.restart;
+  return resolution;
+}
+
+// Avantage de l'ordre tel qu'il sera vecu : l'interface ne recalcule rien, elle
+// demande au moteur. Meme formule que resolveTurn, appliquee a un ordre teste.
+export function forecastDefenseAdvantage(attackType: string, order: DuelDecision, initiativeSide: 'attack' | 'defense'): number {
+  return defenseOrderAdvantage(attackType, {
+    defenseDecision: order,
+    orderScale: initiativeScale({ side: initiativeSide })
+  });
+}
+}

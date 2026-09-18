@@ -1,0 +1,130 @@
+﻿// marquage strict, l'aide, la sortie, le repli et l'interception sont des
+// decisions, pas des automatismes. L interface consomme ces intents et les
+// joue par playAction, sans rien recoder.
+export function defensiveIntents(state: MatchState, defendingTeam: TeamId, focusId?: string): ActionIntent[] {
+  const holder = state.players[state.ball.holderId];
+  if (!holder || holder.team === defendingTeam) {
+    return [];
+  }
+  const focus = focusId ? state.players[focusId] : undefined;
+  const reference = focus && focus.team === defendingTeam ? focus.position : holder.position;
+  const defenders = Object.values(state.players)
+    .filter((player) => player.team === defendingTeam && player.isOnCourt && player.role !== 'goalkeeper')
+    .sort((first, second) => distance(first.position, reference) - distance(second.position, reference));
+  const focused = focus && focus.team === defendingTeam && focus.role !== 'goalkeeper' && focus.isOnCourt ? focus : undefined;
+  const defender = focused ?? defenders[0];
+  if (!defender) {
+    return [];
+  }
+  const intents: ActionIntent[] = [];
+  // Le coach decide, le moteur punit si c'est absurde : on propose TOUT le
+  // registre defensif quel que soit l'eloignement. Tenter un marquage a 20 m
+  // se paie tout seul (defenseur efface, intervalle ouvert). Seule la
+  // lisibilite change : l'estimation dit le risque, jamais d'interdiction.
+  intents.push({ type: 'mark', actorId: defender.id, targetId: holder.id });
+  intents.push({ type: 'help', actorId: defender.id, targetId: holder.id });
+  intents.push({ type: 'intercept', actorId: defender.id, targetId: holder.id });
+  intents.push({ type: 'press', actorId: defender.id, targetId: holder.id });
+  intents.push({ type: 'retreat', actorId: defender.id, targetId: holder.id });
+  return intents;
+}
+
+// Reponse defensive automatique : quand l'attaque choisit duel ou tir, le
+// defenseur le plus proche conteste (doc 00 : gardien ou bloc au bon moment).
+// L'interface appelle contestAction avant playAction pour laisser le coach
+// defendre ; l'IA et la simulation l'appliquent d'office.
+// L'ordre defensif DuelDecision vit dans types.ts (D-018) : il est partage par
+// le moteur de tour, l'IA et l'interface. On le reexporte ici pour que les
+// consommateurs historiques (sequence, ai, simulation) n'aient rien a changer.
+export type { DuelDecision };
+
+export interface DuelPair {
+  attack: ActionIntent;
+  defense: { decision: DuelDecision; defenderId: string; helperId?: string };
+}
+
+// Libelles des ordres defensifs : l'interface affiche ces mots, jamais les
+// rouages. Un ordre = une phrase de banc de touche (doc 04, doc 05 Â§103).
+export const DEFENSE_ORDER_LABELS: Record<DuelDecision, { name: string; detail: string }> = {
+  hold: { name: 'Tenir son vis-Ã -vis', detail: 'Rester collÃ©, ne pas sâ€™engager : le duel est contenu' },
+  contain: { name: 'Ceinturer', detail: 'Cadrer le porteur, fermer lâ€™intervalle : faute possible mais action stoppÃ©e' },
+  intercept: { name: 'Tenter lâ€™interception', detail: 'Lire la passe et la couper : vol ou dÃ©fenseur effacÃ©' },
+  help: { name: 'Appeler un renfort', detail: 'Doubler le porteur, ouvrir un intervalle ailleurs' },
+  foul: { name: 'Faire faute', detail: 'Stopper lâ€™action au prix dâ€™un coup franc' },
+  retreat: { name: 'Replier le bloc', detail: 'ProtÃ©ger lâ€™intervalle, concÃ©der le tir lointain' }
+};
+
+// Table du duel : attaque x defense -> modificateur d'avantage attaquant.
+// Positif = bon pour l'attaquant, negatif = bon pour la defense.
+// Le duel reste un calcul lisible, pas un jet aveugle : chaque case a un sens
+// de handball (docs 01 Â§7-9, recherche 6-0 : sortir = pression mais dos ouvert).
+const DUEL_TABLE: Record<string, Record<DuelDecision, number>> = {
+  duel: { hold: 0, contain: -8, intercept: 14, help: -18, foul: 22, retreat: 8 },
+  dribble: { hold: 4, contain: -6, intercept: 10, help: -12, foul: 18, retreat: 10 },
+  fix: { hold: -4, contain: 2, intercept: 16, help: -6, foul: 12, retreat: -8 },
+  pass: { hold: 0, contain: -5, intercept: -18, help: -10, foul: 0, retreat: 2 },
+  shoot: { hold: 0, contain: -4, intercept: 0, help: -14, foul: 10, retreat: 16 },
+  run: { hold: 2, contain: -4, intercept: 8, help: -10, foul: 10, retreat: 12 },
+  cross: { hold: 0, contain: -6, intercept: 12, help: -10, foul: 8, retreat: 6 }
+};
+
+export function duelTableModifier(attackType: string, defense: DuelDecision): number {
+  const row = DUEL_TABLE[attackType];
+  if (!row) return 0;
+  return row[defense] ?? 0;
+}
+
+// Poids de l'ordre defensif dans la resolution : un ordre change l'issue, il ne
+// l'ecrase pas. Un porteur plus fort reste plus fort, mais mal choisir son
+// ordre coute vraiment (docs 01 Â§7-9, 05 Â§103).
+const DEFENSE_ORDER_WEIGHT = 0.6;
+
+// Traduction ordre du banc -> etiquette de trace historique. Le moteur garde
+// contestAction pour la lecture des evenements, et defenseDecision comme
+// veritable entree de la table : les deux disent la meme chose (D-018).
+export function defenseOrderToContest(order: DuelDecision): NonNullable<ActionIntent['contestAction']> {
+  switch (order) {
+    case 'intercept': return 'intercept';
+    case 'help': return 'help';
+    case 'retreat': return 'retreat';
+    case 'hold': return 'none';
+    case 'contain': return 'contain';
+    case 'foul': return 'press';
+  }
+}
+
+// Ordre effectif d'une action : le choix explicite du defenseur s'il existe,
+// sinon l'etiquette historique de l'automate.
+function defenseOrderOf(action: ActionIntent): DuelDecision | undefined {
+  if (action.defenseDecision) return action.defenseDecision;
+  switch (action.contestAction) {
+    case 'intercept': return 'intercept';
+    case 'help': return 'help';
+    case 'retreat': return 'retreat';
+    case 'block-shot': return 'contain';
+    case 'press': return 'foul';
+    case 'contain': return 'contain';
+    case 'none': return 'hold';
+    default: return undefined;
+  }
+}
+
+// Avantage de l'ordre defensif pour une action offensive donnee. Zero quand
+// personne n'a rien annonce : les chemins historiques (IA continue, tests)
+// gardent exactement leur comportement d'avant.
+export function defenseOrderAdvantage(attackType: string, action: ActionIntent): number {
+  const order = defenseOrderOf(action);
+  if (!order) return 0;
+  // Poids du tour (D-018) : qui gagne l'initiative impose son tempo.
+  return duelTableModifier(attackType, order) * DEFENSE_ORDER_WEIGHT * (action.orderScale ?? 1);
+}
+
+// Trace lisible de l'ordre : le rapport et l'historique disent WHY, en mots de
+// banc de touche. Un ordre bien joue et un ordre mal joue ne racontent pas la
+// meme histoire (doc 11 : le rapport explique comment et pourquoi).
+export function defenseOrderTrace(action: ActionIntent, success: boolean): string[] {
+  const order = defenseOrderOf(action);
+  if (!order) return [];
+  const label = DEFENSE_ORDER_LABELS[order].name;
+  return [success ? `ordre adverse dÃ©jouÃ© (${label})` : `ordre adverse tenu (${label})`];
+}

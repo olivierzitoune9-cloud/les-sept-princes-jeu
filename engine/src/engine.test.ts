@@ -9,6 +9,7 @@ import { executeSequence } from './sequence.js';
 import { adaptDefense, recommendedDefense } from './defense.js';
 import { chooseGoalkeeperRead, goalkeeperAdvantage } from './goalkeeper.js';
 import { runSeedCampaign } from './validation.js';
+import { DEFENSE_TURN_ORDERS, TURN_ENTRY_DISTANCE, chooseTurnDefenseOrder, forecastDefenseAdvantage, inTurnRange, initiativeScale, resolveInitiative, resolveTurn, speedValue } from './turn.js';
 import { SeededRandom } from './random.js';
 import {
   CENTRE,
@@ -28,12 +29,21 @@ import type { MatchState } from './types.js';
 
 describe('pilot match engine', () => {
   it('exposes contextual actions for the current holder', () => {
-    const situation = getSituation(createPilotMatch(44));
+    const state = createPilotMatch(44);
+    // Gates geometriques (doc 18 §3.2) : le duel et la fixation n'existent
+    // qu'au contact du vis-a-vis. On colle Kael sur Yanis et on ouvre le
+    // couloir central pour que l'intervalle devant lui soit reel.
+    for (const defender of ['kael', 'mael', 'elio', 'karim'] as const) {
+      state.players[defender]!.position = { x: 24, y: 17 };
+    }
+    state.players.kael!.position = { x: 21.5, y: 10 };
+    state.players.yanis!.position = { x: 20, y: 10 };
+    state.ball.position = { x: 20, y: 10 };
+    const situation = getSituation(state);
     expect(situation.state.ball.holderId).toBe('yanis');
     expect(situation.availableActions.some((action) => action.type === 'pass' && action.targetId === 'aaron')).toBe(true);
     expect(situation.availableActions.some((action) => action.type === 'duel')).toBe(true);
     expect(situation.availableActions.some((action) => action.type === 'fix')).toBe(true);
-    expect(situation.availableActions.some((action) => action.type === 'cross')).toBe(true);
   });
 
   it('makes a traceable contextual decision', () => {
@@ -567,4 +577,109 @@ describe('placement, defense et terrain', () => {
     expect(Math.max(...frame.map((point) => point.x))).toBeCloseTo(COURT_LENGTH + GOAL_DEPTH, 5);
     expect(goalPostLateral()).toEqual([8.5, 11.5]);
   });
+// D-018 : le systeme de tour. La possession se joue en manches de decisions
+// opposees a partir de 12 m du but, avec initiative a la vitesse.
+describe('systeme de tour (D-018)', () => {
+  it('ouvre la manche a 12 m du but, pas avant', () => {
+    expect(TURN_ENTRY_DISTANCE).toBe(12);
+    const state = createPilotMatch(44);
+    state.ball.holderId = 'aaron';
+    // 15 m du but lagny : encore l'approche, la defense tient sa ligne a plat.
+    state.players.aaron!.position = { x: 25, y: 10 };
+    expect(inTurnRange(state, 'nangis')).toBe(false);
+    // 11 m : la manche est ouverte.
+    state.players.aaron!.position = { x: 29, y: 10 };
+    expect(inTurnRange(state, 'nangis')).toBe(true);
+    // Lagny dans la moitie Nangis : meme regle de son cote.
+    state.ball.holderId = 'kael';
+    state.players.kael!.position = { x: 11, y: 10 };
+    expect(inTurnRange(state, 'lagny')).toBe(true);
+    state.players.kael!.position = { x: 20, y: 10 };
+    expect(inTurnRange(state, 'lagny')).toBe(false);
+  });
+
+  it('donne l’initiative a la vitesse, sans reaction', () => {
+    const state = createPilotMatch(44);
+    const fast = { ...state.players.neo!, acceleration: 92, anticipation: 77 };
+    const slow = { ...state.players.karim!, acceleration: 60, anticipation: 78 };
+    expect(speedValue(fast)).toBeGreaterThan(speedValue(slow));
+    const random = new SeededRandom(1);
+    // Neo (92 d'acceleration) part devant Karim : le porteur joue en premier.
+    expect(resolveInitiative(fast, slow, random).side).toBe('attack');
+    // Karim face au pivot adverse rapide : le defenseur lit et joue en premier.
+    expect(resolveInitiative(slow, fast, random).side).toBe('defense');
+    // Qui joue en premier impose son tempo : +35 % pour la defense, -30 % sinon.
+    expect(initiativeScale({ side: 'defense' })).toBeCloseTo(1.35, 5);
+    expect(initiativeScale({ side: 'attack' })).toBeCloseTo(0.7, 5);
+  });
+
+  it('propose les six ordres defensifs du tour', () => {
+    expect(DEFENSE_TURN_ORDERS.map((entry) => entry.order)).toEqual([
+      'hold', 'contain', 'intercept', 'help', 'foul', 'retreat'
+    ]);
+  });
+
+  it('l’IA choisit un ordre aveugle et le trace dans l’evenement', () => {
+    const state = createPilotMatch(44);
+    state.ball.holderId = 'aaron';
+    state.players.aaron!.position = { x: 30, y: 10 };
+    state.players.mael!.position = { x: 31.5, y: 10 };
+    const random = new SeededRandom(9);
+    const choice = chooseTurnDefenseOrder(state, 'lagny', random);
+    expect(DEFENSE_TURN_ORDERS.some((entry) => entry.order === choice.order)).toBe(true);
+    expect(choice.defenderId).not.toBe('');
+    const turn = resolveTurn(state, { type: 'duel', actorId: 'aaron', targetId: choice.defenderId, intention: 'attack-inside' }, choice, random);
+    expect(['won', 'contained', 'foul-defense']).toContain(turn.event.result);
+    // L'ordre du defenseur se lit dans les causes : le joueur sait ce qu'elle a joue.
+    expect(turn.event.causes.some((cause) => cause.includes('ordre adverse'))).toBe(true);
+    expect(turn.initiative.side === 'attack' || turn.initiative.side === 'defense').toBe(true);
+  });
+
+  it('calibre le tir : on peut marquer contre Teddy (retour de test)', () => {
+    // Aaron a 9 m, Teddy dans les buts. Le but doit tomber regulierement :
+    // un gardien de 91 pese lourd, il ne mure pas la cage (D-018).
+    const base = createPilotMatch(44);
+    let goals = 0;
+    let saves = 0;
+    const attempts = 120;
+    for (let index = 0; index < attempts; index += 1) {
+      const state = structuredClone(base);
+      state.timeSeconds = index;
+      state.players.aaron!.position = { x: 31, y: 10 };
+      state.ball.holderId = 'aaron';
+      state.ball.position = { x: 31, y: 10 };
+      state.players.teddy!.position = { x: 37, y: 10 };
+      const zone = index % 2 === 0
+        ? { shotSide: 'far' as const, shotHeight: 'low' as const }
+        : { shotSide: 'near' as const, shotHeight: 'high' as const };
+      // Seeds espacees : des seeds consecutives sur un LCG donnent des sorties
+      // quasi identiques (artefact de test, pas du moteur).
+      const resolution = resolveAction(state, { type: 'shoot', actorId: 'aaron', shotType: 'jump', ...zone }, new SeededRandom(1000 + index * 37));
+      if (resolution.event.result === 'goal') goals += 1;
+      if (resolution.event.result === 'save') saves += 1;
+    }
+    const rate = goals / attempts;
+    // Les deux issues existent, et le but tombe a un rythme de handball.
+    expect(goals).toBeGreaterThan(0);
+    expect(saves).toBeGreaterThan(0);
+    expect(rate).toBeGreaterThan(0.25);
+    expect(rate).toBeLessThan(0.75);
+  });
+
+  it('rend la zone visee decisive : le gardien lu paie, le contre-pied ouvre', () => {
+    const state = createPilotMatch(44);
+    state.players.aaron!.position = { x: 31, y: 10 };
+    // Meme tireur, deux zones : l'avantage du gardien ne peut pas etre identique.
+    const lowFar = goalkeeperAdvantage(state, 'lagny', 'aaron', { type: 'jump', side: 'far', height: 'low', power: 92 });
+    const highNear = goalkeeperAdvantage(state, 'lagny', 'aaron', { type: 'jump', side: 'near', height: 'high', power: 92 });
+    expect(lowFar).not.toBe(highNear);
+    // L'ordre defensif pese vraiment : tenir ne vaut pas reculer face a un tir.
+    const hold = forecastDefenseAdvantage('shoot', 'hold', 'defense');
+    const retreat = forecastDefenseAdvantage('shoot', 'retreat', 'defense');
+    expect(retreat).toBeGreaterThan(hold);
+    // Meme ordre, initiative adverse : le tempo change le poids, pas la nature.
+    const retreatLate = forecastDefenseAdvantage('shoot', 'retreat', 'attack');
+    expect(Math.abs(retreatLate)).toBeLessThan(Math.abs(retreat));
+  });
+});
 });

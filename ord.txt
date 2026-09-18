@@ -1,0 +1,317 @@
+﻿
+> engine\src\engine.ts:279:    const orderAdvantage = defenseOrderAdvantage('pass', action);
+  engine\src\engine.ts:280:    const successProbability = (actor.passing + target.reception - 
+pressure - defensivePressureValue - (distance(actor.position, target.position) * 2) + 
+intentionModifier(action.intention) - lane.value * 45 + orderAdvantage) / 160;
+  engine\src\engine.ts:281:    const success = random.chance(successProbability);
+  engine\src\engine.ts:282:    const orderTrace = defenseOrderTrace(action, success);
+  engine\src\engine.ts:283:    const event = appendEvent(nextState, {
+  engine\src\engine.ts:284:      timeSeconds: nextState.timeSeconds,
+  engine\src\engine.ts:285:      type: 'pass',
+  engine\src\engine.ts:286:      actorId: actor.id,
+  engine\src\engine.ts:287:      targetId: target.id,
+  engine\src\engine.ts:288:      result: success ? 'complete' : 'intercepted',
+  engine\src\engine.ts:289:      causes: success
+  engine\src\engine.ts:290:        ? ['passing quality', 'reception timing', lane.value > 0.35 ? 
+'lane contested but released' : 'available lane', ...orderTrace]
+  engine\src\engine.ts:291:        : [lane.value > 0.35 ? 'defensive lane closure' : 'pressure', 
+'distance', 'defensive reading', ...orderTrace]
+  engine\src\engine.ts:292:    });
+  engine\src\engine.ts:293:    if (success) {
+  engine\src\engine.ts:294:      nextState.ball.holderId = target.id;
+  engine\src\engine.ts:295:      nextState.ball.position = { ...target.position };
+  engine\src\engine.ts:296:      nextState.teams[actor.team].possession = true;
+  engine\src\engine.ts:297:      nextState.teams[opposingTeam(actor.team)].possession = false;
+  engine\src\engine.ts:298:    } else {
+  engine\src\engine.ts:299:      transferToOpponent(nextState, actor.team);
+  engine\src\engine.ts:300:    }
+  engine\src\engine.ts:301:    return { state: nextState, event };
+> engine\src\engine.ts:321:    const orderAdvantage = defenseOrderAdvantage('duel', action);
+  engine\src\engine.ts:322:    const advantage = actor.duel + actor.acceleration + 
+actor.confidence / 2 - opponent.defense - opponent.anticipation / 2 - defensivePressureValue / 2 
++ intentionModifier(action.intention) + (actor.momentum ?? 0) * 0.08 + beatenBonus - contestBonus 
++ orderAdvantage;
+  engine\src\engine.ts:323:    // Faire faute est un choix, pas un accident : le defenseur arrete 
+l'action
+  engine\src\engine.ts:324:    // et concede le coup franc (doc 03 §1, doc 05 §103). Il le paie 
+en pression.
+  engine\src\engine.ts:325:    const chosenFoul = defenseOrderOf(action) === 'foul';
+  engine\src\engine.ts:326:    const contactFoul = chosenFoul || random.chance(Math.max(0.02, 
+(actor.pressure + opponent.pressure) / 500));
+  engine\src\engine.ts:327:    if (contactFoul) {
+  engine\src\engine.ts:328:      const event = appendEvent(nextState, {
+  engine\src\engine.ts:329:        timeSeconds: nextState.timeSeconds,
+  engine\src\engine.ts:330:        type: 'duel',
+  engine\src\engine.ts:331:        actorId: actor.id,
+  engine\src\engine.ts:332:        targetId: opponent.id,
+  engine\src\engine.ts:333:        result: 'foul-defense',
+  engine\src\engine.ts:334:        causes: chosenFoul
+  engine\src\engine.ts:335:          ? ['chosen foul', 'free throw conceded', 'penetration 
+stopped']
+  engine\src\engine.ts:336:          : ['contact', 'pressure', 'late defensive timing']
+  engine\src\engine.ts:337:      });
+  engine\src\engine.ts:338:      if (chosenFoul) {
+  engine\src\engine.ts:339:        opponent.pressure = Math.min(100, opponent.pressure + 20);
+  engine\src\engine.ts:340:        opponent.energy = Math.max(0, opponent.energy - 4);
+  engine\src\engine.ts:341:        actor.pressure = Math.max(0, actor.pressure - 10);
+  engine\src\engine.ts:342:      }
+  engine\src\engine.ts:343:      actor.pressure = Math.max(0, actor.pressure - 5);
+> engine\src\engine.ts:387:    const advantage = actor.duel * 0.6 + actor.acceleration * 0.8 + 
+actor.confidence / 3 - opponent.defense * 0.7 - opponent.anticipation / 3 + 
+intentionModifier(action.intention) + defenseOrderAdvantage('dribble', action);
+  engine\src\engine.ts:388:    const success = random.chance((advantage + 100) / 200);
+  engine\src\engine.ts:389:    const lateral = actor.position.y <= 10 ? -2 : 2;
+  engine\src\engine.ts:390:    if (success) {
+  engine\src\engine.ts:391:      actor.position = {
+  engine\src\engine.ts:392:        x: actor.position.x + (actor.team === 'nangis' ? 1.5 : -1.5),
+  engine\src\engine.ts:393:        y: Math.max(1, Math.min(19, actor.position.y + lateral))
+  engine\src\engine.ts:394:      };
+  engine\src\engine.ts:395:      nextState.ball.position = { ...actor.position };
+  engine\src\engine.ts:396:      actor.pressure = Math.max(0, actor.pressure - 6);
+  engine\src\engine.ts:397:      actor.momentum = Math.min(100, (actor.momentum ?? 0) + 15);
+  engine\src\engine.ts:398:    } else {
+  engine\src\engine.ts:399:      actor.pressure = Math.min(100, actor.pressure + 4);
+  engine\src\engine.ts:400:    }
+  engine\src\engine.ts:401:    const dribbleTrace = defenseOrderTrace(action, success);
+  engine\src\engine.ts:402:    const event = appendEvent(nextState, {
+  engine\src\engine.ts:403:      timeSeconds: nextState.timeSeconds,
+  engine\src\engine.ts:404:      type: 'dribble',
+  engine\src\engine.ts:405:      actorId: actor.id,
+  engine\src\engine.ts:406:      targetId: opponent.id,
+  engine\src\engine.ts:407:      result: success ? 'shifted' : 'held',
+  engine\src\engine.ts:408:      causes: success ? ['change of pace', 'change of direction', 
+'defender on heels', ...dribbleTrace] : ['defender balance', 'no space taken', ...dribbleTrace]
+  engine\src\engine.ts:409:    });
+> engine\src\engine.ts:420:    const fixationPull = Math.max(4, 14 + defenseOrderAdvantage('fix', 
+action));
+  engine\src\engine.ts:421:    opponent.pressure = Math.min(100, opponent.pressure + 
+fixationPull);
+  engine\src\engine.ts:422:    const fixTrace = defenseOrderTrace(action, fixationPull >= 14);
+  engine\src\engine.ts:423:    const event = appendEvent(nextState, {
+  engine\src\engine.ts:424:      timeSeconds: nextState.timeSeconds,
+  engine\src\engine.ts:425:      type: 'fixation',
+  engine\src\engine.ts:426:      actorId: actor.id,
+  engine\src\engine.ts:427:      targetId: opponent.id,
+  engine\src\engine.ts:428:      result: fixationPull >= 14 ? 'attracted' : 'resisted',
+  engine\src\engine.ts:429:      causes: ['carrier threat', 'defender choice', 'space created 
+elsewhere', ...fixTrace]
+  engine\src\engine.ts:430:    });
+  engine\src\engine.ts:431:    return { state: nextState, event };
+  engine\src\engine.ts:432:  }
+  engine\src\engine.ts:433:
+  engine\src\engine.ts:434:  if (action.type === 'block') {
+  engine\src\engine.ts:435:    if (!opponent || actor.team === opponent.team) {
+  engine\src\engine.ts:436:      throw new Error('A block target must be an opponent');
+  engine\src\engine.ts:437:    }
+  engine\src\engine.ts:438:    // Ecran borne : le bloqueur avance vers le point d ecran par pas 
+de
+  engine\src\engine.ts:439:    // 3,5 m, jamais teleporte (doc 17, ecart E-003).
+  engine\src\engine.ts:440:    const screenPoint = { x: opponent.position.x, y: 
+opponent.position.y + (actor.position.y < 10 ? -1 : 1) };
+  engine\src\engine.ts:441:    actor.position = stepToward(actor.position, screenPoint, 3.5);
+  engine\src\engine.ts:442:    opponent.pressure = Math.min(100, opponent.pressure + 8);
+> engine\src\engine.ts:491:    const runOrder = defenseOrderAdvantage('run', action);
+  engine\src\engine.ts:492:    const stepCap = maxStep * Math.max(0.55, Math.min(1, 1 + runOrder 
+/ 40));
+  engine\src\engine.ts:493:    const remaining = distance(actor.position, action.targetPosition);
+  engine\src\engine.ts:494:    const ratio = remaining > stepCap ? stepCap / remaining : 1;
+  engine\src\engine.ts:495:    actor.position = {
+  engine\src\engine.ts:496:      x: actor.position.x + (action.targetPosition.x - 
+actor.position.x) * ratio,
+  engine\src\engine.ts:497:      y: actor.position.y + (action.targetPosition.y - 
+actor.position.y) * ratio
+  engine\src\engine.ts:498:    };
+  engine\src\engine.ts:499:    const isCarrier = actor.id === nextState.ball.holderId;
+  engine\src\engine.ts:500:    if (isCarrier) {
+  engine\src\engine.ts:501:      // Regle du marcher (O-008, doc 18 §3.3) : balle en main, 3 pas 
+sans
+  engine\src\engine.ts:502:      // dribble. Chaque course de porteur consomme des pas ; si le 
+budget est
+  engine\src\engine.ts:503:      // depasse, la balle est a mettre au sol (dribble) avant de 
+courir a
+  engine\src\engine.ts:504:      // nouveau.
+  engine\src\engine.ts:505:      const runCost = Math.abs(action.targetPosition.y - 
+actor.position.y) < 0.5 ? 3 : 2;
+  engine\src\engine.ts:506:      actor.stepsWithoutDribble = (actor.stepsWithoutDribble ?? 0) + 
+runCost;
+  engine\src\engine.ts:507:      nextState.ball.position = { ...actor.position };
+  engine\src\engine.ts:508:      actor.momentum = Math.min(100, (actor.momentum ?? 0) + 45);
+  engine\src\engine.ts:509:    }
+  engine\src\engine.ts:510:    const runTrace = defenseOrderTrace(action, ratio >= 0.999);
+  engine\src\engine.ts:511:    const event = appendEvent(nextState, {
+  engine\src\engine.ts:512:      timeSeconds: nextState.timeSeconds,
+  engine\src\engine.ts:513:      type: 'off-ball-run',
+> engine\src\engine.ts:681:    const shotOrderAdvantage = defenseOrderAdvantage('shoot', action);
+  engine\src\engine.ts:682:    const shootingPower = actor.shooting + profile.power + roleBonus + 
+pivotBonus + spaceBonus - context.effectiveDistance * 0.7 - actor.pressure * 0.3 + 
+intentionModifier(action.intention) + momentumBonus - contestedMalus + shotOrderAdvantage;
+  engine\src\engine.ts:683:    // Poids du gardien (D-018) : un gardien de 91 ne doit pas rendre 
+le but
+  engine\src\engine.ts:684:    // impossible. Il pese 0.72 sur son placement et 0.18 sur sa 
+lecture ; le
+  engine\src\engine.ts:685:    // reste du duel tireur-gardien se joue sur la zone lue et le 
+contexte.
+  engine\src\engine.ts:686:    const savePower = goalkeeper ? goalkeeper.goalkeeper * 0.72 + 
+goalkeeper.anticipation * 0.18 : 0;
+  engine\src\engine.ts:687:    // P2 — le duel tireur-gardien se joue sur la ZONE visee : le 
+gardien lit
+  engine\src\engine.ts:688:    // cote + hauteur (chooseGoalkeeperRead), bonus si lecture juste, 
+malus si
+  engine\src\engine.ts:689:    // pris a contre-pied. Seul apres duel gagne, le tireur impose son 
+rythme.
+  engine\src\engine.ts:690:    const shotZone = { side: action.shotSide ?? 'center' as const, 
+height: action.shotHeight ?? 'middle' as const };
+  engine\src\engine.ts:691:    const goalkeeperRead = goalkeeper ? goalkeeperAdvantage(nextState, 
+goalkeeper.team, actor.id, {
+  engine\src\engine.ts:692:      type: shotType,
+  engine\src\engine.ts:693:      side: shotZone.side,
+  engine\src\engine.ts:694:      height: shotZone.height,
+  engine\src\engine.ts:695:      power: actor.shooting
+  engine\src\engine.ts:696:    }, { aloneAfterBeaten: beatenNearby }) : 0;
+  engine\src\engine.ts:697:    // P2 — memoire des zones : le gardien apprend ou ce tireur vise 
+vraiment.
+  engine\src\engine.ts:698:    // Prochain tir dans la meme zone = anticipation possible (doc 03, 
+14).
+  engine\src\engine.ts:699:    if (goalkeeper) {
+  engine\src\engine.ts:700:      const zoneKey = `shoot-zone:${shotZone.side}:${shotZone.height}`;
+  engine\src\engine.ts:701:      const previous = nextState.memory.patterns[zoneKey];
+  engine\src\engine.ts:702:      nextState.memory.patterns[zoneKey] = {
+  engine\src\engine.ts:703:        key: zoneKey,
+> engine\src\engine.ts:828:export const DEFENSE_ORDER_LABELS: Record<DuelDecision, { name: 
+string; detail: string }> = {
+  engine\src\engine.ts:829:  hold: { name: 'Tenir son vis-à-vis', detail: 'Rester collé, ne pas 
+s’engager : le duel est contenu' },
+  engine\src\engine.ts:830:  contain: { name: 'Ceinturer', detail: 'Cadrer le porteur, fermer 
+l’intervalle : faute possible mais action stoppée' },
+  engine\src\engine.ts:831:  intercept: { name: 'Tenter l’interception', detail: 'Lire la passe 
+et la couper : vol ou défenseur effacé' },
+  engine\src\engine.ts:832:  help: { name: 'Appeler un renfort', detail: 'Doubler le porteur, 
+ouvrir un intervalle ailleurs' },
+  engine\src\engine.ts:833:  foul: { name: 'Faire faute', detail: 'Stopper l’action au prix d’un 
+coup franc' },
+  engine\src\engine.ts:834:  retreat: { name: 'Replier le bloc', detail: 'Protéger l’intervalle, 
+concéder le tir lointain' }
+  engine\src\engine.ts:835:};
+  engine\src\engine.ts:836:
+  engine\src\engine.ts:837:// Table du duel : attaque x defense -> modificateur d'avantage 
+attaquant.
+  engine\src\engine.ts:838:// Positif = bon pour l'attaquant, negatif = bon pour la defense.
+  engine\src\engine.ts:839:// Le duel reste un calcul lisible, pas un jet aveugle : chaque case a 
+un sens
+  engine\src\engine.ts:840:// de handball (docs 01 §7-9, recherche 6-0 : sortir = pression mais 
+dos ouvert).
+  engine\src\engine.ts:841:const DUEL_TABLE: Record<string, Record<DuelDecision, number>> = {
+  engine\src\engine.ts:842:  duel: { hold: 0, contain: -8, intercept: 14, help: -18, foul: 22, 
+retreat: 8 },
+  engine\src\engine.ts:843:  dribble: { hold: 4, contain: -6, intercept: 10, help: -12, foul: 18, 
+retreat: 10 },
+  engine\src\engine.ts:844:  fix: { hold: -4, contain: 2, intercept: 16, help: -6, foul: 12, 
+retreat: -8 },
+  engine\src\engine.ts:845:  pass: { hold: 0, contain: -5, intercept: -18, help: -10, foul: 0, 
+retreat: 2 },
+  engine\src\engine.ts:846:  shoot: { hold: 0, contain: -4, intercept: 0, help: -14, foul: 10, 
+retreat: 16 },
+  engine\src\engine.ts:847:  run: { hold: 2, contain: -4, intercept: 8, help: -10, foul: 10, 
+retreat: 12 },
+  engine\src\engine.ts:848:  cross: { hold: 0, contain: -6, intercept: 12, help: -10, foul: 8, 
+retreat: 6 }
+  engine\src\engine.ts:849:};
+  engine\src\engine.ts:850:
+> engine\src\engine.ts:860:const DEFENSE_ORDER_WEIGHT = 0.6;
+  engine\src\engine.ts:861:
+  engine\src\engine.ts:862:// Traduction ordre du banc -> etiquette de trace historique. Le 
+moteur garde
+  engine\src\engine.ts:863:// contestAction pour la lecture des evenements, et defenseDecision 
+comme
+  engine\src\engine.ts:864:// veritable entree de la table : les deux disent la meme chose 
+(D-018).
+> engine\src\engine.ts:865:export function defenseOrderToContest(order: DuelDecision): 
+NonNullable<ActionIntent['contestAction']> {
+  engine\src\engine.ts:866:  switch (order) {
+  engine\src\engine.ts:867:    case 'intercept': return 'intercept';
+  engine\src\engine.ts:868:    case 'help': return 'help';
+  engine\src\engine.ts:869:    case 'retreat': return 'retreat';
+  engine\src\engine.ts:870:    case 'hold': return 'none';
+  engine\src\engine.ts:871:    case 'contain': return 'contain';
+  engine\src\engine.ts:872:    case 'foul': return 'press';
+  engine\src\engine.ts:873:  }
+  engine\src\engine.ts:874:}
+  engine\src\engine.ts:875:
+  engine\src\engine.ts:876:// Ordre effectif d'une action : le choix explicite du defenseur s'il 
+existe,
+  engine\src\engine.ts:877:// sinon l'etiquette historique de l'automate.
+  engine\src\engine.ts:878:function defenseOrderOf(action: ActionIntent): DuelDecision | 
+undefined {
+  engine\src\engine.ts:879:  if (action.defenseDecision) return action.defenseDecision;
+  engine\src\engine.ts:880:  switch (action.contestAction) {
+  engine\src\engine.ts:881:    case 'intercept': return 'intercept';
+  engine\src\engine.ts:882:    case 'help': return 'help';
+  engine\src\engine.ts:883:    case 'retreat': return 'retreat';
+  engine\src\engine.ts:884:    case 'block-shot': return 'contain';
+  engine\src\engine.ts:885:    case 'press': return 'foul';
+  engine\src\engine.ts:886:    case 'contain': return 'contain';
+  engine\src\engine.ts:887:    case 'none': return 'hold';
+> engine\src\engine.ts:895:export function defenseOrderAdvantage(attackType: string, action: 
+ActionIntent): number {
+  engine\src\engine.ts:896:  const order = defenseOrderOf(action);
+  engine\src\engine.ts:897:  if (!order) return 0;
+  engine\src\engine.ts:898:  // Poids du tour (D-018) : qui gagne l'initiative impose son tempo.
+> engine\src\engine.ts:899:  return duelTableModifier(attackType, order) * DEFENSE_ORDER_WEIGHT * 
+(action.orderScale ?? 1);
+  engine\src\engine.ts:900:}
+  engine\src\engine.ts:901:
+  engine\src\engine.ts:902:// Trace lisible de l'ordre : le rapport et l'historique disent WHY, 
+en mots de
+  engine\src\engine.ts:903:// banc de touche. Un ordre bien joue et un ordre mal joue ne 
+racontent pas la
+  engine\src\engine.ts:904:// meme histoire (doc 11 : le rapport explique comment et pourquoi).
+  engine\src\engine.ts:905:export function defenseOrderTrace(action: ActionIntent, success: 
+boolean): string[] {
+  engine\src\engine.ts:906:  const order = defenseOrderOf(action);
+  engine\src\engine.ts:907:  if (!order) return [];
+> engine\src\engine.ts:908:  const label = DEFENSE_ORDER_LABELS[order].name;
+  engine\src\engine.ts:909:  return [success ? `ordre adverse déjoué (${label})` : `ordre adverse 
+tenu (${label})`];
+  engine\src\engine.ts:910:}
+  engine\src\engine.ts:911:
+  engine\src\engine.ts:912:// L'IA defensive choisit SANS voir ton ordre (aveugle simultane, doc 
+05 §103) :
+  engine\src\engine.ts:913:// elle lit la situation (porteur, vis-a-vis, espace, memoire de tes 
+habitudes)
+  engine\src\engine.ts:914:// et verrouille. Toi non plus tu ne vois pas son choix avant de 
+valider.
+> engine\src\engine.ts:915:export function chooseDefenseOrder(state: MatchState, defendingTeam: 
+TeamId, random: SeededRandom): DuelPair['defense'] {
+  engine\src\engine.ts:916:  const holder = state.players[state.ball.holderId];
+  engine\src\engine.ts:917:  if (!holder) return { decision: 'hold', defenderId: '' };
+  engine\src\engine.ts:918:  const referenceId = referenceDefenderId(state, holder.id);
+  engine\src\engine.ts:919:  const defender = (referenceId ? state.players[referenceId] : 
+undefined)
+  engine\src\engine.ts:920:    ?? Object.values(state.players).find((p) => p.team === 
+defendingTeam && p.isOnCourt && p.role !== 'goalkeeper');
+  engine\src\engine.ts:921:  if (!defender) return { decision: 'hold', defenderId: '' };
+  engine\src\engine.ts:922:  const dist = Math.hypot(defender.position.x - holder.position.x, 
+defender.position.y - holder.position.y);
+  engine\src\engine.ts:923:  // Memoire : si tu duels tout le temps, la defense serre le 
+vis-a-vis.
+  engine\src\engine.ts:924:  const duelHabit = (state.memory.patterns['duel:won']?.occurrences ?? 
+0) + (state.memory.patterns['duel:contained']?.occurrences ?? 0);
+  engine\src\engine.ts:925:  const passHabit = 
+(state.memory.patterns['pass:completed']?.occurrences ?? 0);
+  engine\src\engine.ts:926:  const roll = random.next();
+  engine\src\engine.ts:927:  // Au contact : tenir ou contenir, aider si tu abuses du duel.
+  engine\src\engine.ts:928:  if (dist <= 2.5) {
+  engine\src\engine.ts:929:    if (duelHabit >= 2 && roll < 0.35) {
+  engine\src\engine.ts:930:      const helper = Object.values(state.players).find((p) => p.team 
+=== defendingTeam && p.isOnCourt && p.role !== 'goalkeeper' && p.id !== defender.id);
+  engine\src\engine.ts:931:      return helper
+  engine\src\engine.ts:932:        ? { decision: 'help', defenderId: defender.id, helperId: 
+helper.id }
+  engine\src\engine.ts:933:        : { decision: 'help', defenderId: defender.id };
+  engine\src\engine.ts:934:    }
+  engine\src\engine.ts:935:    return { decision: roll < 0.55 ? 'hold' : 'contain', defenderId: 
+defender.id };
+  engine\src\engine.ts:936:  }
+  engine\src\engine.ts:937:  // Mi-distance : contenir, couper la ligne si tu passes beaucoup.
+
+

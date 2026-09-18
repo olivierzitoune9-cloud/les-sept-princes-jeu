@@ -5,7 +5,7 @@ import { observeIntervals, passLaneContest } from './spatial.js';
 import { defensivePressure } from './defense.js';
 import { goalkeeperAdvantage, mentalSwing } from './goalkeeper.js';
 import { referenceDefenderId } from './formation.js';
-import type { ActionIntent, ActionResolution, MatchEvent, MatchState, Situation, TeamId, Vector2 } from './types.js';
+import type { ActionIntent, ActionResolution, DuelDecision, MatchEvent, MatchState, Situation, TeamId, Vector2 } from './types.js';
 
 // Portee de tir credible, en metres effectifs (distance + angle). Au dela,
 // aucun tir n est propose.
@@ -274,8 +274,12 @@ export function resolveAction(state: MatchState, action: ActionIntent, random = 
     const defensivePressureValue = defensivePressure(nextState.teams[opposingTeam(actor.team)].system, actor.role, action.intention);
     // Un defenseur sur la ligne ferme la passe : c est le bloc qui compte.
     const lane = passLaneContest(nextState, actor.team, actor.position, target.position);
-    const successProbability = (actor.passing + target.reception - pressure - defensivePressureValue - (distance(actor.position, target.position) * 2) + intentionModifier(action.intention) - lane.value * 45) / 160;
+    // Ordre defensif du tour (D-018) : couper la ligne fait chuter la passe,
+    // un renfort ferme l'acces, un repli concede la circulation.
+    const orderAdvantage = defenseOrderAdvantage('pass', action);
+    const successProbability = (actor.passing + target.reception - pressure - defensivePressureValue - (distance(actor.position, target.position) * 2) + intentionModifier(action.intention) - lane.value * 45 + orderAdvantage) / 160;
     const success = random.chance(successProbability);
+    const orderTrace = defenseOrderTrace(action, success);
     const event = appendEvent(nextState, {
       timeSeconds: nextState.timeSeconds,
       type: 'pass',
@@ -283,8 +287,8 @@ export function resolveAction(state: MatchState, action: ActionIntent, random = 
       targetId: target.id,
       result: success ? 'complete' : 'intercepted',
       causes: success
-        ? ['passing quality', 'reception timing', lane.value > 0.35 ? 'lane contested but released' : 'available lane']
-        : [lane.value > 0.35 ? 'defensive lane closure' : 'pressure', 'distance', 'defensive reading']
+        ? ['passing quality', 'reception timing', lane.value > 0.35 ? 'lane contested but released' : 'available lane', ...orderTrace]
+        : [lane.value > 0.35 ? 'defensive lane closure' : 'pressure', 'distance', 'defensive reading', ...orderTrace]
     });
     if (success) {
       nextState.ball.holderId = target.id;
@@ -311,8 +315,15 @@ export function resolveAction(state: MatchState, action: ActionIntent, random = 
       : action.contestAction === 'none' ? -6 : 6
       : 0;
     const beatenBonus = (opponent.beatenUntil ?? 0) > nextState.timeSeconds ? 25 : 0;
-    const advantage = actor.duel + actor.acceleration + actor.confidence / 2 - opponent.defense - opponent.anticipation / 2 - defensivePressureValue / 2 + intentionModifier(action.intention) + (actor.momentum ?? 0) * 0.08 + beatenBonus - contestBonus;
-    const contactFoul = random.chance(Math.max(0.02, (actor.pressure + opponent.pressure) / 500));
+    // Ordre defensif du tour (D-018) : ceinturer ferme l'intervalle, appeler un
+    // renfort double le porteur, tenter l'interception ouvre le dos. Le coach
+    // defend, le moteur arbitre.
+    const orderAdvantage = defenseOrderAdvantage('duel', action);
+    const advantage = actor.duel + actor.acceleration + actor.confidence / 2 - opponent.defense - opponent.anticipation / 2 - defensivePressureValue / 2 + intentionModifier(action.intention) + (actor.momentum ?? 0) * 0.08 + beatenBonus - contestBonus + orderAdvantage;
+    // Faire faute est un choix, pas un accident : le defenseur arrete l'action
+    // et concede le coup franc (doc 03 §1, doc 05 §103). Il le paie en pression.
+    const chosenFoul = defenseOrderOf(action) === 'foul';
+    const contactFoul = chosenFoul || random.chance(Math.max(0.02, (actor.pressure + opponent.pressure) / 500));
     if (contactFoul) {
       const event = appendEvent(nextState, {
         timeSeconds: nextState.timeSeconds,
@@ -320,12 +331,20 @@ export function resolveAction(state: MatchState, action: ActionIntent, random = 
         actorId: actor.id,
         targetId: opponent.id,
         result: 'foul-defense',
-        causes: ['contact', 'pressure', 'late defensive timing']
+        causes: chosenFoul
+          ? ['chosen foul', 'free throw conceded', 'penetration stopped']
+          : ['contact', 'pressure', 'late defensive timing']
       });
+      if (chosenFoul) {
+        opponent.pressure = Math.min(100, opponent.pressure + 20);
+        opponent.energy = Math.max(0, opponent.energy - 4);
+        actor.pressure = Math.max(0, actor.pressure - 10);
+      }
       actor.pressure = Math.max(0, actor.pressure - 5);
       return { state: nextState, event };
     }
     const success = random.chance((advantage + 100) / 200);
+    const orderTrace = defenseOrderTrace(action, success);
     const event = appendEvent(nextState, {
       timeSeconds: nextState.timeSeconds,
       type: 'duel',
@@ -333,8 +352,8 @@ export function resolveAction(state: MatchState, action: ActionIntent, random = 
       targetId: opponent.id,
       result: success ? 'won' : 'contained',
       causes: success
-        ? [...(action.contestedBy ? ['defensive contest beaten'] : ['first step', 'acceleration']), 'space', action.intention === 'attack-inside' ? 'inside interval' : action.intention === 'attack-outside' ? 'outside interval' : 'interval taken']
-        : [...(action.contestedBy ? ['defensive contest held'] : ['defensive anticipation', 'help coverage']), 'fatigue']
+        ? [...(action.contestedBy ? ['defensive contest beaten'] : ['first step', 'acceleration']), 'space', action.intention === 'attack-inside' ? 'inside interval' : action.intention === 'attack-outside' ? 'outside interval' : 'interval taken', ...orderTrace]
+        : [...(action.contestedBy ? ['defensive contest held'] : ['defensive anticipation', 'help coverage']), 'fatigue', ...orderTrace]
     });
     actor.pressure = success ? Math.max(0, actor.pressure - 8) : Math.min(100, actor.pressure + 10);
     if (success) {
@@ -365,7 +384,7 @@ export function resolveAction(state: MatchState, action: ActionIntent, random = 
     if (!opponent) {
       throw new Error('A dribble target must be an opponent');
     }
-    const advantage = actor.duel * 0.6 + actor.acceleration * 0.8 + actor.confidence / 3 - opponent.defense * 0.7 - opponent.anticipation / 3 + intentionModifier(action.intention);
+    const advantage = actor.duel * 0.6 + actor.acceleration * 0.8 + actor.confidence / 3 - opponent.defense * 0.7 - opponent.anticipation / 3 + intentionModifier(action.intention) + defenseOrderAdvantage('dribble', action);
     const success = random.chance((advantage + 100) / 200);
     const lateral = actor.position.y <= 10 ? -2 : 2;
     if (success) {
@@ -379,13 +398,14 @@ export function resolveAction(state: MatchState, action: ActionIntent, random = 
     } else {
       actor.pressure = Math.min(100, actor.pressure + 4);
     }
+    const dribbleTrace = defenseOrderTrace(action, success);
     const event = appendEvent(nextState, {
       timeSeconds: nextState.timeSeconds,
       type: 'dribble',
       actorId: actor.id,
       targetId: opponent.id,
       result: success ? 'shifted' : 'held',
-      causes: success ? ['change of pace', 'change of direction', 'defender on heels'] : ['defender balance', 'no space taken']
+      causes: success ? ['change of pace', 'change of direction', 'defender on heels', ...dribbleTrace] : ['defender balance', 'no space taken', ...dribbleTrace]
     });
     return { state: nextState, event };
   }
@@ -395,14 +415,18 @@ export function resolveAction(state: MatchState, action: ActionIntent, random = 
       throw new Error('A fixation target must be an opponent');
     }
     actor.position = { x: actor.position.x + (actor.team === 'nangis' ? 1 : -1), y: actor.position.y };
-    opponent.pressure = Math.min(100, opponent.pressure + 14);
+    // Ordre defensif du tour (D-018) : un defenseur qui ne s'engage pas (tenir,
+    // repli) se laisse moins aspirer ; il ne fixe pas la meme chose.
+    const fixationPull = Math.max(4, 14 + defenseOrderAdvantage('fix', action));
+    opponent.pressure = Math.min(100, opponent.pressure + fixationPull);
+    const fixTrace = defenseOrderTrace(action, fixationPull >= 14);
     const event = appendEvent(nextState, {
       timeSeconds: nextState.timeSeconds,
       type: 'fixation',
       actorId: actor.id,
       targetId: opponent.id,
-      result: 'attracted',
-      causes: ['carrier threat', 'defender choice', 'space created elsewhere']
+      result: fixationPull >= 14 ? 'attracted' : 'resisted',
+      causes: ['carrier threat', 'defender choice', 'space created elsewhere', ...fixTrace]
     });
     return { state: nextState, event };
   }
@@ -461,10 +485,13 @@ export function resolveAction(state: MatchState, action: ActionIntent, random = 
       throw new Error('A run target is required');
     }
     // Course bornee : jamais de teleportation, chaque action deplace au plus
-    // 3,5 m (doc 17, ecart E-003).
+    // 3,5 m (doc 17, ecart E-003). L'ordre defensif module la distance
+    // REELLEMENT gagnee : une aide ferme l'acces, un repli concede l'espace.
     const maxStep = 3.5;
+    const runOrder = defenseOrderAdvantage('run', action);
+    const stepCap = maxStep * Math.max(0.55, Math.min(1, 1 + runOrder / 40));
     const remaining = distance(actor.position, action.targetPosition);
-    const ratio = remaining > maxStep ? maxStep / remaining : 1;
+    const ratio = remaining > stepCap ? stepCap / remaining : 1;
     actor.position = {
       x: actor.position.x + (action.targetPosition.x - actor.position.x) * ratio,
       y: actor.position.y + (action.targetPosition.y - actor.position.y) * ratio
@@ -480,12 +507,13 @@ export function resolveAction(state: MatchState, action: ActionIntent, random = 
       nextState.ball.position = { ...actor.position };
       actor.momentum = Math.min(100, (actor.momentum ?? 0) + 45);
     }
+    const runTrace = defenseOrderTrace(action, ratio >= 0.999);
     const event = appendEvent(nextState, {
       timeSeconds: nextState.timeSeconds,
       type: 'off-ball-run',
       actorId: actor.id,
       result: 'completed',
-      causes: isCarrier ? ['carrier advance', 'run-up built', 'shooting balance'] : ['space attack', 'timing', 'defensive attention']
+      causes: isCarrier ? ['carrier advance', 'run-up built', 'shooting balance', ...runTrace] : ['space attack', 'timing', 'defensive attention', ...runTrace]
     });
     return { state: nextState, event };
   }
@@ -648,8 +676,14 @@ export function resolveAction(state: MatchState, action: ActionIntent, random = 
       .filter((player) => player.team !== actor.team && player.isOnCourt && player.role !== 'goalkeeper')
       .reduce((best, player) => Math.min(best, distance(player.position, actor.position)), 99);
     const pivotBonus = actor.role === 'pivot' ? pivotContactBonus(shotType, nearestFoe) : 0;
-    const shootingPower = actor.shooting + profile.power + roleBonus + pivotBonus + spaceBonus - context.effectiveDistance * 0.7 - actor.pressure * 0.3 + intentionModifier(action.intention) + momentumBonus - contestedMalus;
-    const savePower = goalkeeper ? goalkeeper.goalkeeper + goalkeeper.anticipation * 0.35 : 0;
+    // Ordre defensif du tour (D-018) : un renfort qui double le tireur ferme
+    // l'angle, un repli concede le tir, une ceinture gene l'arme.
+    const shotOrderAdvantage = defenseOrderAdvantage('shoot', action);
+    const shootingPower = actor.shooting + profile.power + roleBonus + pivotBonus + spaceBonus - context.effectiveDistance * 0.7 - actor.pressure * 0.3 + intentionModifier(action.intention) + momentumBonus - contestedMalus + shotOrderAdvantage;
+    // Poids du gardien (D-018) : un gardien de 91 ne doit pas rendre le but
+    // impossible. Il pese 0.72 sur son placement et 0.18 sur sa lecture ; le
+    // reste du duel tireur-gardien se joue sur la zone lue et le contexte.
+    const savePower = goalkeeper ? goalkeeper.goalkeeper * 0.72 + goalkeeper.anticipation * 0.18 : 0;
     // P2 — le duel tireur-gardien se joue sur la ZONE visee : le gardien lit
     // cote + hauteur (chooseGoalkeeperRead), bonus si lecture juste, malus si
     // pris a contre-pied. Seul apres duel gagne, le tireur impose son rythme.
@@ -685,14 +719,15 @@ export function resolveAction(state: MatchState, action: ActionIntent, random = 
     // Le repli concede par le defenseur se trace dans les deux issues : c est
     // lui qui a ouvert la distance (doc 00 : la reponse defensive se lit).
     const retreatCause = action.contestAction === 'retreat' ? ['retreat conceded'] : [];
+    const shotOrderTrace = defenseOrderTrace(action, goal);
     const eventData: Omit<MatchEvent, 'id'> = {
       timeSeconds: nextState.timeSeconds,
       type: 'shoot',
       actorId: actor.id,
       result: goal ? 'goal' : 'save',
       causes: goal
-        ? [profile.label, actor.role === 'wing' ? 'wing angle managed' : actor.role === 'back' ? 'back range' : actor.role === 'pivot' ? (nearestFoe <= 1.5 ? 'pivot contact finish' : 'pivot close range') : 'close range', beatenNearby ? 'alone after duel won' : openness > 0.5 ? 'open interval' : 'shot quality', momentum >= 40 ? 'run-up momentum' : 'timing', `zone ${shotZone.side}-${shotZone.height}`, ...retreatCause]
-        : [action.contestedBy ? 'defensive block timing' : `goalkeeper read zone ${shotZone.side}-${shotZone.height}`, actor.role === 'wing' && shotType !== 'extension' && shotType !== 'roucoulette' ? 'closed angle' : 'pressure', 'shot distance', ...(momentum >= 40 ? ['run-up momentum faded'] : []), ...retreatCause]
+        ? [profile.label, actor.role === 'wing' ? 'wing angle managed' : actor.role === 'back' ? 'back range' : actor.role === 'pivot' ? (nearestFoe <= 1.5 ? 'pivot contact finish' : 'pivot close range') : 'close range', beatenNearby ? 'alone after duel won' : openness > 0.5 ? 'open interval' : 'shot quality', momentum >= 40 ? 'run-up momentum' : 'timing', `zone ${shotZone.side}-${shotZone.height}`, ...retreatCause, ...shotOrderTrace]
+        : [action.contestedBy ? 'defensive block timing' : `goalkeeper read zone ${shotZone.side}-${shotZone.height}`, actor.role === 'wing' && shotType !== 'extension' && shotType !== 'roucoulette' ? 'closed angle' : 'pressure', 'shot distance', ...(momentum >= 40 ? ['run-up momentum faded'] : []), ...retreatCause, ...shotOrderTrace]
     };
     if (goalkeeper) {
       eventData.targetId = goalkeeper.id;
@@ -778,6 +813,139 @@ export function defensiveIntents(state: MatchState, defendingTeam: TeamId, focus
 // defenseur le plus proche conteste (doc 00 : gardien ou bloc au bon moment).
 // L'interface appelle contestAction avant playAction pour laisser le coach
 // defendre ; l'IA et la simulation l'appliquent d'office.
+// L'ordre defensif DuelDecision vit dans types.ts (D-018) : il est partage par
+// le moteur de tour, l'IA et l'interface. On le reexporte ici pour que les
+// consommateurs historiques (sequence, ai, simulation) n'aient rien a changer.
+export type { DuelDecision };
+
+export interface DuelPair {
+  attack: ActionIntent;
+  defense: { decision: DuelDecision; defenderId: string; helperId?: string };
+}
+
+// Libelles des ordres defensifs : l'interface affiche ces mots, jamais les
+// rouages. Un ordre = une phrase de banc de touche (doc 04, doc 05 §103).
+export const DEFENSE_ORDER_LABELS: Record<DuelDecision, { name: string; detail: string }> = {
+  hold: { name: 'Tenir son vis-à-vis', detail: 'Rester collé, ne pas s’engager : le duel est contenu' },
+  contain: { name: 'Ceinturer', detail: 'Cadrer le porteur, fermer l’intervalle : faute possible mais action stoppée' },
+  intercept: { name: 'Tenter l’interception', detail: 'Lire la passe et la couper : vol ou défenseur effacé' },
+  help: { name: 'Appeler un renfort', detail: 'Doubler le porteur, ouvrir un intervalle ailleurs' },
+  foul: { name: 'Faire faute', detail: 'Stopper l’action au prix d’un coup franc' },
+  retreat: { name: 'Replier le bloc', detail: 'Protéger l’intervalle, concéder le tir lointain' }
+};
+
+// Table du duel : attaque x defense -> modificateur d'avantage attaquant.
+// Positif = bon pour l'attaquant, negatif = bon pour la defense.
+// Le duel reste un calcul lisible, pas un jet aveugle : chaque case a un sens
+// de handball (docs 01 §7-9, recherche 6-0 : sortir = pression mais dos ouvert).
+const DUEL_TABLE: Record<string, Record<DuelDecision, number>> = {
+  duel: { hold: 0, contain: -8, intercept: 14, help: -18, foul: 22, retreat: 8 },
+  dribble: { hold: 4, contain: -6, intercept: 10, help: -12, foul: 18, retreat: 10 },
+  fix: { hold: -4, contain: 2, intercept: 16, help: -6, foul: 12, retreat: -8 },
+  pass: { hold: 0, contain: -5, intercept: -18, help: -10, foul: 0, retreat: 2 },
+  shoot: { hold: 0, contain: -4, intercept: 0, help: -14, foul: 10, retreat: 16 },
+  run: { hold: 2, contain: -4, intercept: 8, help: -10, foul: 10, retreat: 12 },
+  cross: { hold: 0, contain: -6, intercept: 12, help: -10, foul: 8, retreat: 6 }
+};
+
+export function duelTableModifier(attackType: string, defense: DuelDecision): number {
+  const row = DUEL_TABLE[attackType];
+  if (!row) return 0;
+  return row[defense] ?? 0;
+}
+
+// Poids de l'ordre defensif dans la resolution : un ordre change l'issue, il ne
+// l'ecrase pas. Un porteur plus fort reste plus fort, mais mal choisir son
+// ordre coute vraiment (docs 01 §7-9, 05 §103).
+const DEFENSE_ORDER_WEIGHT = 0.6;
+
+// Traduction ordre du banc -> etiquette de trace historique. Le moteur garde
+// contestAction pour la lecture des evenements, et defenseDecision comme
+// veritable entree de la table : les deux disent la meme chose (D-018).
+export function defenseOrderToContest(order: DuelDecision): NonNullable<ActionIntent['contestAction']> {
+  switch (order) {
+    case 'intercept': return 'intercept';
+    case 'help': return 'help';
+    case 'retreat': return 'retreat';
+    case 'hold': return 'none';
+    case 'contain': return 'contain';
+    case 'foul': return 'press';
+  }
+}
+
+// Ordre effectif d'une action : le choix explicite du defenseur s'il existe,
+// sinon l'etiquette historique de l'automate.
+function defenseOrderOf(action: ActionIntent): DuelDecision | undefined {
+  if (action.defenseDecision) return action.defenseDecision;
+  switch (action.contestAction) {
+    case 'intercept': return 'intercept';
+    case 'help': return 'help';
+    case 'retreat': return 'retreat';
+    case 'block-shot': return 'contain';
+    case 'press': return 'foul';
+    case 'contain': return 'contain';
+    case 'none': return 'hold';
+    default: return undefined;
+  }
+}
+
+// Avantage de l'ordre defensif pour une action offensive donnee. Zero quand
+// personne n'a rien annonce : les chemins historiques (IA continue, tests)
+// gardent exactement leur comportement d'avant.
+export function defenseOrderAdvantage(attackType: string, action: ActionIntent): number {
+  const order = defenseOrderOf(action);
+  if (!order) return 0;
+  // Poids du tour (D-018) : qui gagne l'initiative impose son tempo.
+  return duelTableModifier(attackType, order) * DEFENSE_ORDER_WEIGHT * (action.orderScale ?? 1);
+}
+
+// Trace lisible de l'ordre : le rapport et l'historique disent WHY, en mots de
+// banc de touche. Un ordre bien joue et un ordre mal joue ne racontent pas la
+// meme histoire (doc 11 : le rapport explique comment et pourquoi).
+export function defenseOrderTrace(action: ActionIntent, success: boolean): string[] {
+  const order = defenseOrderOf(action);
+  if (!order) return [];
+  const label = DEFENSE_ORDER_LABELS[order].name;
+  return [success ? `ordre adverse déjoué (${label})` : `ordre adverse tenu (${label})`];
+}
+
+// L'IA defensive choisit SANS voir ton ordre (aveugle simultane, doc 05 §103) :
+// elle lit la situation (porteur, vis-a-vis, espace, memoire de tes habitudes)
+// et verrouille. Toi non plus tu ne vois pas son choix avant de valider.
+export function chooseDefenseOrder(state: MatchState, defendingTeam: TeamId, random: SeededRandom): DuelPair['defense'] {
+  const holder = state.players[state.ball.holderId];
+  if (!holder) return { decision: 'hold', defenderId: '' };
+  const referenceId = referenceDefenderId(state, holder.id);
+  const defender = (referenceId ? state.players[referenceId] : undefined)
+    ?? Object.values(state.players).find((p) => p.team === defendingTeam && p.isOnCourt && p.role !== 'goalkeeper');
+  if (!defender) return { decision: 'hold', defenderId: '' };
+  const dist = Math.hypot(defender.position.x - holder.position.x, defender.position.y - holder.position.y);
+  // Memoire : si tu duels tout le temps, la defense serre le vis-a-vis.
+  const duelHabit = (state.memory.patterns['duel:won']?.occurrences ?? 0) + (state.memory.patterns['duel:contained']?.occurrences ?? 0);
+  const passHabit = (state.memory.patterns['pass:completed']?.occurrences ?? 0);
+  const roll = random.next();
+  // Au contact : tenir ou contenir, aider si tu abuses du duel.
+  if (dist <= 2.5) {
+    if (duelHabit >= 2 && roll < 0.35) {
+      const helper = Object.values(state.players).find((p) => p.team === defendingTeam && p.isOnCourt && p.role !== 'goalkeeper' && p.id !== defender.id);
+      return helper
+        ? { decision: 'help', defenderId: defender.id, helperId: helper.id }
+        : { decision: 'help', defenderId: defender.id };
+    }
+    return { decision: roll < 0.55 ? 'hold' : 'contain', defenderId: defender.id };
+  }
+  // Mi-distance : contenir, couper la ligne si tu passes beaucoup.
+  if (dist <= 5) {
+    if (passHabit >= 3 && roll < 0.3) return { decision: 'intercept', defenderId: defender.id };
+    return { decision: roll < 0.6 ? 'contain' : 'hold', defenderId: defender.id };
+  }
+  // Loin : tenir le bloc, jamais sortir dans le vide.
+  return { decision: 'hold', defenderId: defender.id };
+}
+
+// Contestation automatique : le defenseur le plus proche (jamais battu) repond
+// a l'action offensive. C'est la reponse de l'automate, utilisee par l'IA, la
+// simulation et la sequence ; l'interface la remplace quand le coach defend.
 export function contestAction(state: MatchState, action: ActionIntent): ActionIntent {
   if (action.type !== 'duel' && action.type !== 'shoot' && action.type !== 'dribble' && action.type !== 'pass') {
     return action;

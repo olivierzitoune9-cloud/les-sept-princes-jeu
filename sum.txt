@@ -1,0 +1,9 @@
+FAILED:4 PASSED:43
+- pilot match engine keeps a strict assignment alive while the block drifts
+   AssertionError: expected 5.112487308398425 to be less than 2.6 at C:\Users\willi\OneDrive\Bureau\sept-princes-jeu\engine\src\engine.test.ts:131:17 at file:///C:/Users/willi/OneDrive/Bureau/sept-princes-jeu/engine/node_modules/@vitest/runner/dist/index.js:146:1
+- placement, defense et terrain fait bouger le bloc defensif apres chaque action
+   AssertionError: expected [ { x: 33.5, y: 2.5 }, …(5) ] to not deeply equal [ { x: 33.5, y: 2.5 }, …(5) ] at C:\Users\willi\OneDrive\Bureau\sept-princes-jeu\engine\src\engine.test.ts:432:23 at file:///C:/Users/willi/OneDrive/Bureau/sept-princes-jeu/engine/node_
+- placement, defense et terrain relance au gardien apres un arret et au centre apres un but
+   AssertionError: expected { x: 21.5, y: 10 } to deeply equal { x: 20, y: 10 } at C:\Users\willi\OneDrive\Bureau\sept-princes-jeu\engine\src\engine.test.ts:461:47 at file:///C:/Users/willi/OneDrive/Bureau/sept-princes-jeu/engine/node_modules/@vitest/runner/dist/
+- placement, defense et terrain P2 : le moteur propose le tir des que la portee le permet (pas de filtre UI)
+   AssertionError: expected false to be true // Object.is equality at C:\Users\willi\OneDrive\Bureau\sept-princes-jeu\engine\src\engine.test.ts:565:72 at file:///C:/Users/willi/OneDrive/Bureau/sept-princes-jeu/engine/node_modules/@vitest/runner/dist/index.js:146:

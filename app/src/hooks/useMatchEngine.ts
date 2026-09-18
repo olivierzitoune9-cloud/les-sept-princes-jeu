@@ -3,11 +3,23 @@ import { createPilotMatch } from '@engine/match.js'
 import { chooseNextAction } from '@engine/ai.js'
 import { contestAction, defensiveIntents, getSituation, shotProfile } from '@engine/engine.js'
 import { observeIntervals } from '@engine/spatial.js'
+import { referenceDefenderId } from '@engine/formation.js'
+// D-018 : le tour par tour. La manche s'ouvre a 12 m du but attaque, les deux
+// camps verrouillent leur choix en aveugle, l'initiative (vitesse) tranche le
+// tempo. Aucune reaction : decision contre decision (doc 05 §103).
+import {
+  DEFENSE_TURN_ORDERS,
+  chooseTurnDefenseOrder,
+  forecastDefenseAdvantage,
+  inTurnRange,
+  resolveInitiative,
+  resolveTurn
+} from '@engine/turn.js'
 import { playAction, installPossession } from '@engine/possession.js'
 import { changeSystem, callTimeout } from '@engine/coaching.js'
 import { SeededRandom } from '@engine/random.js'
 import { shotContext } from '@engine/court.js'
-import type { ActionIntent, DefensiveSystem, MatchState, TeamId } from '@engine/types.js'
+import type { ActionIntent, DefensiveSystem, DuelDecision, MatchState, TeamId } from '@engine/types.js'
 import type { TacticalTrajectory, OpenIntervalMarker } from '../utils/fieldRenderer'
 import type { ClimaxEvent } from '../components/ActionClimaxOverlay'
 import type { DuelContext } from '../components/SideTacticalPanel'

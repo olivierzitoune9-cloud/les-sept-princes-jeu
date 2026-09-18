@@ -1,0 +1,48 @@
+﻿
+app\src\hooks\useMatchEngine.ts:11:  DEFENSE_TURN_ORDERS,
+app\src\hooks\useMatchEngine.ts:12:  chooseTurnDefenseOrder,
+app\src\hooks\useMatchEngine.ts:14:  inTurnRange,
+app\src\hooks\useMatchEngine.ts:16:  resolveTurn
+app\src\hooks\useMatchEngine.ts:17:} from '@engine/turn.js'
+app\src\hooks\useMatchEngine.ts:78:  turnovers: { nangis: number; lagny: number }
+app\src\hooks\useMatchEngine.ts:107:  if (!holder) return false
+app\src\hooks\useMatchEngine.ts:108:  return holder.position.x <= 20
+app\src\hooks\useMatchEngine.ts:164:  return (causes || []).map((c) => CAUSE_TRANSLATIONS[c] || 
+c).join(' · ')
+app\src\hooks\useMatchEngine.ts:179:      return {
+app\src\hooks\useMatchEngine.ts:186:    return {
+app\src\hooks\useMatchEngine.ts:196:      return {
+app\src\hooks\useMatchEngine.ts:204:      return {
+app\src\hooks\useMatchEngine.ts:211:    return {
+app\src\hooks\useMatchEngine.ts:221:      return {
+app\src\hooks\useMatchEngine.ts:228:    return {
+app\src\hooks\useMatchEngine.ts:237:    return {
+app\src\hooks\useMatchEngine.ts:246:    return {
+app\src\hooks\useMatchEngine.ts:256:    return {
+app\src\hooks\useMatchEngine.ts:265:    return {
+app\src\hooks\useMatchEngine.ts:274:    return {
+app\src\hooks\useMatchEngine.ts:283:    return {
+app\src\hooks\useMatchEngine.ts:292:    return {
+app\src\hooks\useMatchEngine.ts:301:    return {
+app\src\hooks\useMatchEngine.ts:310:    return {
+app\src\hooks\useMatchEngine.ts:318:  return {
+app\src\hooks\useMatchEngine.ts:391:        if (!selected) return null
+app\src\hooks\useMatchEngine.ts:393:        return kept && kept.team === 'nangis' && 
+kept.isOnCourt ? selected : null
+app\src\hooks\useMatchEngine.ts:417:  if (intent.type !== 'duel' && intent.type !== 'dribble' && 
+intent.type !== 'shoot' && intent.type !== 'pass') return null
+app\src\hooks\useMatchEngine.ts:418:  if (intent.contestedBy) return null
+app\src\hooks\useMatchEngine.ts:420:  if (!auto.contestedBy || !auto.contestAction) return null
+app\src\hooks\useMatchEngine.ts:422:  if (!defender || defender.team !== 'nangis') return null
+app\src\hooks\useMatchEngine.ts:424:  if (!holder || holder.team !== 'lagny' || 
+!ballInNangisHalf(state)) return null
+app\src\hooks\useMatchEngine.ts:446:  return { action, defenderId: defender.id, defenderName: 
+defender.name, options: base, openedAt: Date.now() }
+app\src\hooks\useMatchEngine.ts:453:  if (!actor) return 50
+app\src\hooks\useMatchEngine.ts:457:    if (!target) return 50
+app\src\hooks\useMatchEngine.ts:464:    return Math.max(12, Math.min(95, Math.round(prob * 100)))
+app\src\hooks\useMatchEngine.ts:469:    if (!target) return 50
+app\src\hooks\useMatchEngine.ts:478:    return Math.max(15, Math.min(92, Math.round(prob * 100)))
+app\src\hooks\useMatchEngine.ts:483:    if (!target) return 50
+
+

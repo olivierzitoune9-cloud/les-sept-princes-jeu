@@ -7,6 +7,13 @@ export type ActionType = 'pass' | 'duel' | 'dribble' | 'shoot' | 'move' | 'run' 
 export type ActionTiming = 'immediate' | 'after-pass' | 'after-fixation' | 'after-block' | 'after-movement' | 'after-side-change';
 export type ActionIntention = 'secure' | 'hidden' | 'attract' | 'create-space' | 'attack-inside' | 'attack-outside' | 'protect' | 'accelerate' | 'temporize' | 'anticipate';
 
+// Ordre defensif individuel (doc 05 §103, D-018) : le tour par tour se joue
+// decision contre decision, sans reaction. Le defenseur choisit SON ordre en
+// aveugle (tenir, ceinturer, appeler un renfort, tenter l'interception, faire
+// faute, replier) pendant que l'attaquant choisit SON geste. Les deux se
+// resolvent ensemble : c'est la table DUEL_TABLE qui arbitre.
+export type DuelDecision = 'hold' | 'contain' | 'intercept' | 'help' | 'foul' | 'retreat';
+
 export interface Vector2 {
   x: number;
   y: number;
@@ -110,6 +117,17 @@ export interface ActionIntent {
   // defenseur le plus proche conteste ; l'interface la remplit via contestAction.
   contestedBy?: string;
   contestAction?: 'press' | 'contain' | 'help' | 'intercept' | 'retreat' | 'block-shot' | 'none';
+  // Ordre defensif du tour (D-018) : porte le choix du defenseur quand la
+  // resolution oppose deux decisions simultanees. Il alimente DUEL_TABLE et
+  // pese donc vraiment dans le resultat, contrairement a contestAction qui
+  // n'etait qu'une etiquette de trace.
+  defenseDecision?: DuelDecision;
+  // Cible secondaire de l ordre (le renfort appele sur une aide, D-018).
+  helperId?: string;
+  // Poids du tour sur l'ordre defensif (D-018) : qui gagne l'initiative joue
+  // son choix plus fort (1.35) ou en retard (0.7). Absent = comportement
+  // historique inchange (IA continue, tests, sequences).
+  orderScale?: number;
   shotType?: 'placed' | 'power' | 'lob' | 'roucoulette' | 'chabala' | 'jump' | 'standing' | 'extension';
   shotSide?: 'near' | 'far' | 'center';
   shotHeight?: 'high' | 'low' | 'middle';

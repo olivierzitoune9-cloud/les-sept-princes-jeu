@@ -32,6 +32,21 @@ export { GOALKEEPER_DEPTH, defensiveBlock, driftTeam, goalkeeperTarget, placeTea
 export type { DriftOptions, TeamShape } from './formation.js';
 export { installPossession, playAction, stepShapes } from './possession.js';
 export type { PlayedAction, RestartKind, ShapeStep } from './possession.js';
+// Systeme de tour (D-018) : manches de decisions opposees a partir de 12 m.
+export {
+  DEFENSE_TURN_ORDERS,
+  TURN_ENTRY_DISTANCE,
+  aiTurnAttack,
+  chooseTurnDefenseOrder,
+  defenseTurnOptions,
+  forecastDefenseAdvantage,
+  inTurnRange,
+  initiativeScale,
+  resolveInitiative,
+  resolveTurn,
+  speedValue
+} from './turn.js';
+export type { DefenseTurnChoice, Initiative, TurnResolution } from './turn.js';
 export { adaptDefense, defensivePressure, recommendedDefense } from './defense.js';
 export { chooseGoalkeeperRead, goalkeeperAdvantage, mentalSwing } from './goalkeeper.js';
 export { runSeedCampaign } from './validation.js';

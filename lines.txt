@@ -1,0 +1,16 @@
+﻿35:     // couloir central pour que l'intervalle devant lui soit reel.
+122:     const marked = resolveAction(state, { type: 'mark', actorId: 'kael', targetId: 'yanis' }, new SeededRandom(63));
+131:     expect(gap).toBeLessThan(2.6);
+415:     const state = createPilotMatch(44);
+423:     expect(closed.defenderId).toBe('mael');
+432:     expect(after).not.toEqual(before);
+446:     for (let attempt = 1; attempt <= 120 && (!saveState || !goalState); attempt += 1) {
+452:       // seeds voisines : on espace les seeds pour couvrir les deux issues.
+457:     expect(saveState?.ball.holderId).toBe('teddy');
+460:     expect(goalState?.ball.holderId).toBe('kael');
+563:     const state = createPilotMatch(44);
+585:     const state = createPilotMatch(44);
+592:     expect(inTurnRange(state, 'nangis')).toBe(true);
+598:     expect(inTurnRange(state, 'lagny')).toBe(false);
+652:       const zone = index % 2 === 0
+657:       const resolution = resolveAction(state, { type: 'shoot', actorId: 'aaron', shotType: 'jump', ...zone }, new Seeded

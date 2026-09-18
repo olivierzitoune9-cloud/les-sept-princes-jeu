@@ -57,7 +57,10 @@ export function goalkeeperAdvantage(state: MatchState, goalkeeperTeam: TeamId, s
   const decision = chooseGoalkeeperRead(state, goalkeeperTeam, shooterId, shot, shooterContext);
   const goalkeeper = Object.values(state.players).find((player) => player.team === goalkeeperTeam && player.role === 'goalkeeper' && player.isOnCourt);
   if (!goalkeeper) return 0;
-  const readBonus = decision.read === 'wait' ? goalkeeper.goalkeeper * 0.35 : goalkeeper.anticipation * decision.confidence * 0.55;
+  // D-018 : le gardien pese sans murer le but. Placement 0.15, lecture 0.30
+  // quand il anticipe la zone, et le contre-pied coute -14. Les buts doivent
+  // tomber : Liam et Teddy restent forts, plus infranchissables.
+  const readBonus = decision.read === 'wait' ? goalkeeper.goalkeeper * 0.15 : goalkeeper.anticipation * decision.confidence * 0.3;
   // P2 — lecture juste = bonus marque, lecture fausse = le gardien est pris :
   // anticiper une zone et voir le ballon partir ailleurs coute cher.
   const shotZone = `anticipate-${shot.height}-${shot.side}`;
