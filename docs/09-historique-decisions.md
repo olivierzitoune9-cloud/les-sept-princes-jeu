@@ -155,3 +155,10 @@ Ce fichier trace les decisions qui structurent le projet. Une nouvelle decision 
 - Raison : le continu avec fenetres synchrones ne donnait aucune lisibilite defensive ; la Pokemon-rule (choix simultane aveugle + initiative par stat de vitesse) est une boucle eprouvee, lisible, et fidele au 1c1 du hand : l'attaquant tente, le defenseur devine.
 - Impact : `engine/src/turn.ts` (nouveau : resolveTurn, resolveInitiative, chooseTurnDefenseOrder, inTurnRange, TURN_ENTRY_DISTANCE), `types.ts` (DuelDecision, DefensiveOrderTrace), `engine.ts` (DEFENSE_ORDER_LABELS, traces d'ordre), tests D-018. Calibrage tir : 50,7 % de reussite sur tir propre a 9 m contre Teddy (91) — on peut marquer. App : le câblage complet de la boucle de tour reste a poser dans `useMatchEngine.ts` (le moteur est pret, l'interface suit).
 
+## D-020 - Volee jouable V0 sandbox (editeur de fleches)
+- Date : 2026-09-18
+- Statut : adoptee (demande joueur : jouer la nouvelle interface a la fin, push et historique quand fini)
+- Decision : `app/src/main.tsx` branche la volee (`AppVolley`) ; boucle plan-then-resolve a temps fige, plans verrouilles en aveugle des deux cotes, simulation moteur `resolveVolley` 3 a 5 s a tick strict avec arret anticipe, horloge FIFA 2x10 min sans vitesses, budget 3 majeures + 2 mineures affiche et valide, journal causal et breches dynamiques lisibles. Ancienne boucle conservee (`App.tsx` + `useMatchEngine.ts`) mais non branchee, sans suppression.
+- Raison : rendre la spec D-019 jouable sans attendre V1 ; prouver les trois proprietes V0 (provoquer une ouverture, fermer sans suivre le ballon, comprendre apres coup) en jeu.
+- Impact : `app/src/hooks/useVolleyEngine.ts` (`useVolleyMatch`), `app/src/components/VolleyPlanner.tsx` + CSS, `app/src/components/AppVolley.tsx` + CSS, `Field.tsx` (`onCourtClick`), `fieldRenderer.ts` (traces attackSpace/move/cut/stretch). Licite : VALIDE (ronds, fleches, zones, texte). Tests : engine build OK, volley 11/11 OK, app build 49 modules OK.
+

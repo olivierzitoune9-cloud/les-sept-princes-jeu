@@ -38,6 +38,7 @@ interface FieldProps {
   openIntervals?: OpenIntervalMarker[]
   onPlayerSelect: (playerId: string) => void
   onTrajectorySelect?: (actionId: string) => void
+  onCourtClick?: (point: { x: number; y: number }) => void
 }
 
 const MIN_PXM = 7
@@ -50,7 +51,8 @@ const Field: React.FC<FieldProps> = ({
   hoveredActionId = null,
   openIntervals = [],
   onPlayerSelect,
-  onTrajectorySelect
+  onTrajectorySelect,
+  onCourtClick
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -204,6 +206,10 @@ const Field: React.FC<FieldProps> = ({
         return
       }
       onPlayerSelect(clickedPlayer.id)
+    }
+    // Clic terrain libre : vise un point pour la volee planifiee.
+    if (onCourtClick) {
+      onCourtClick({ x: Math.max(0, Math.min(40, courtX)), y: Math.max(0, Math.min(20, courtY)) })
     }
   }
 

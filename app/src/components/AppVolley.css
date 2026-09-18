@@ -1,0 +1,10 @@
+.app-volley { min-height: 100vh; background: #0b111b; color: #eef2f8; }
+.volley-hud { padding: 12px 16px; border-bottom: 1px solid rgba(148,163,184,0.2); }
+.volley-score { display: flex; justify-content: space-between; align-items: center; font-weight: 800; }
+.volley-score .chrono { color: #93a4bb; font-weight: 600; }
+.volley-sub { display: flex; gap: 12px; align-items: center; color: #93a4bb; font-size: 13px; margin-top: 6px; }
+.volley-sub button { margin-left: auto; background: #223048; color: #eef2f8; border: 1px solid rgba(148,163,184,0.35); border-radius: 8px; padding: 6px 10px; cursor: pointer; }
+.volley-main { display: grid; grid-template-columns: 1.4fr 1fr; gap: 12px; padding: 12px 16px; }
+.volley-field { min-height: 420px; }
+.volley-side { display: flex; flex-direction: column; gap: 12px; }
+@media (max-width: 1000px) { .volley-main { grid-template-columns: 1fr; } }

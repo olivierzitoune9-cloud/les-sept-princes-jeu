@@ -24,7 +24,7 @@ import {
 export interface TacticalTrajectory {
   id: string
   actionId: string
-  type: 'pass' | 'shoot' | 'duel' | 'fix' | 'cross' | 'run'
+  type: 'pass' | 'shoot' | 'duel' | 'fix' | 'cross' | 'run' | 'attackSpace' | 'move' | 'cut' | 'stretch'
   from: { x: number; y: number }
   to: { x: number; y: number }
   risk?: 'safe' | 'moderate' | 'risky'
@@ -539,7 +539,7 @@ function drawTacticalTrajectories(
   // Courses et croises (P1, preuve trajectoires) : l'intention de mouvement
   // se trace AVANT la decision, comme le trace au stylet d'Inazuma Eleven —
   // le coach voit ou le joueur veut aller, pas seulement ou il est.
-  trajectories.filter((t) => t.type === 'run' || t.type === 'cross').forEach((traj) => {
+  trajectories.filter((t) => t.type === 'run' || t.type === 'cross' || t.type === 'attackSpace' || t.type === 'move' || t.type === 'cut' || t.type === 'stretch').forEach((traj) => {
     const isHovered = traj.actionId === hoveredActionId
     const [fromX, fromY] = toCanvas(traj.from)
     const [toX, toY] = toCanvas(traj.to)
