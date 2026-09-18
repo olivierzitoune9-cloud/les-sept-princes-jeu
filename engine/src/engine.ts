@@ -762,21 +762,15 @@ export function defensiveIntents(state: MatchState, defendingTeam: TeamId, focus
     return [];
   }
   const intents: ActionIntent[] = [];
-  // Proximite d'abord (docs 00 et 13 : chaque consigne a une distance de sens).
-  // Pres du porteur : marquer, aider, couper la ligne. Loin : la seule consigne
-  // individuelle valable est le repli vers son but. Une option offre a 20 m du
-  // porteur n'a aucun sens de handball.
-  const holderDistance = distance(defender.position, holder.position);
-  if (holderDistance <= 6) {
-    intents.push({ type: 'mark', actorId: defender.id, targetId: holder.id });
-    intents.push({ type: 'help', actorId: defender.id, targetId: holder.id });
-    intents.push({ type: 'intercept', actorId: defender.id, targetId: holder.id });
-    if (holderDistance <= 4) {
-      intents.push({ type: 'press', actorId: defender.id, targetId: holder.id });
-    }
-  } else {
-    intents.push({ type: 'retreat', actorId: defender.id, targetId: holder.id });
-  }
+  // Le coach decide, le moteur punit si c'est absurde : on propose TOUT le
+  // registre defensif quel que soit l'eloignement. Tenter un marquage a 20 m
+  // se paie tout seul (defenseur efface, intervalle ouvert). Seule la
+  // lisibilite change : l'estimation dit le risque, jamais d'interdiction.
+  intents.push({ type: 'mark', actorId: defender.id, targetId: holder.id });
+  intents.push({ type: 'help', actorId: defender.id, targetId: holder.id });
+  intents.push({ type: 'intercept', actorId: defender.id, targetId: holder.id });
+  intents.push({ type: 'press', actorId: defender.id, targetId: holder.id });
+  intents.push({ type: 'retreat', actorId: defender.id, targetId: holder.id });
   return intents;
 }
 

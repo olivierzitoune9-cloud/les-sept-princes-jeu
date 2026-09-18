@@ -1071,12 +1071,6 @@ const takeTimeout = useCallback(() => {
   }
 }, [syncState])
 
-// P1 — temporalisation defensive (doc 18 §3.4, O-009) : quand le porteur
-// adverse entre en zone de decision, le temps ralentit fortement AVANT
-// d'ouvrir la fenetre, pour que le coach lise la situation. Delai borne,
-// jamais deux fenetres concurrentes (garde-fou openedAt + awaitingDecision).
-const DEFENSIVE_SLOWDOWN_MS = 1100
-
 // Boucle pilotee par l etat : entre deux rendus, soit la fenetre de decision
 // s ouvre pour Nangis en mode coach, soit un pas de simulation IA s execute.
 useEffect(() => {
@@ -1121,9 +1115,9 @@ useEffect(() => {
       const uiAction = describeAction(intent, current, holder.id)
       const contest = uiAction ? buildContest(uiAction, current) : null
       if (contest) {
-        // P1 : le temps ralentit avant la fenetre — le coach voit le porteur
-        // arriver, la trajectoire reste affichee, puis la fenetre s'ouvre.
-        // Garde-fou : si une fenetre est deja ouverte, on laisse l'IA defendre.
+        // Defense jouable : la simulation se fige, la fenetre s'ouvre tout de
+        // suite, et le temps ne reprend qu'apres ton choix. Pas de setTimeout
+        // qui se fait ecraser par la boucle, pas de resolution en douce.
         if (awaitingDecisionRef.current || pendingContestRef.current) {
           actionCountRef.current += 1
           stallRef.current = 0
@@ -1134,15 +1128,11 @@ useEffect(() => {
           checkMatchEnd(auto.state)
           return
         }
-        setDecisionLabel(`${holder.name} arrive — lecture de la défense…`)
-        setTimeout(() => {
-          if (awaitingDecisionRef.current) return
-          setPendingContest(contest)
-          pendingContestRef.current = contest
-          setAwaitingDecision(true)
-          awaitingDecisionRef.current = true
-          setDecisionLabel(`${holder.name} attaque — ${contest.defenderName} peut répondre, choisis la défense de Nangis`)
-        }, DEFENSIVE_SLOWDOWN_MS)
+        setPendingContest(contest)
+        pendingContestRef.current = contest
+        setAwaitingDecision(true)
+        awaitingDecisionRef.current = true
+        setDecisionLabel(`${holder.name} attaque — ${contest.defenderName} peut répondre, choisis la défense de Nangis`)
         return
       }
     }

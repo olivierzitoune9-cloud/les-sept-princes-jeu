@@ -122,10 +122,18 @@ Ce fichier trace les decisions qui structurent le projet. Une nouvelle decision 
 - Raison : P1 = le coach a le temps de lire avant que la resolution ne se joue ; les options se voient ou elles vont.
 - Impact : `useMatchEngine.ts` (DEFENSIVE_SLOWDOWN_MS, pendingContestRef, OFFENSIVE_WINDOW_MAX), `fieldRenderer.ts` (courbes run/cross), `10` (O-011 creee).
 
-## D-016 - Correctif P1 : le tir n'est jamais evince de la fenetre + P2 duel tireur-gardien
+## D-016 - Correctif P1 : pas de filtre top-4 + P2 duel tireur-gardien
 
 - Date : 2026-09-18
 - Statut : adoptee (bug remonte : tir absent meme devant le but ; fenetre top-4 evincait le tir quand 4 passes estimaient mieux ; docs 03 gardien decisionnel, 14 S47-48 lecture Liam-Malone)
 - Decision : la fenetre montre TOUT ce que le moteur propose, sans filtre top-4 : tenter hors condition se punit par la resolution (gardien qui lit, bloc qui monte, %). P2 : le gardien lit la ZONE visee (cote + hauteur), pas le geste abstrait — memoire des zones par tireur (repetitions = anticipation ciblee), bonus lecture juste (+10), malus pris a contre-pied (-14), seul apres duel gagne = le gardien attend le geste. Pivot : son tir est un jeu au contact (roucoulette +8, chabala +6, suspension -6 au contact <= 1,5 m), options pivot reordonnees, estimations alignees. Les causes du tir tracent zone + contact (`pivot contact finish`, `zone far-low`, `alone after duel won`).
 - Raison : le top-4 sortait de nulle part et rendait le jeu injouable ; un tir hors condition qui se punit tout seul vaut mieux qu'un tir interdit. Yanis a 9 m arret, Aaron lance a 6 m seul, Edgar au contact : trois duels differents.
 - Impact : `useMatchEngine.ts` (filtre supprime, options pivot, estimation pivot), `goalkeeper.ts` (GoalkeeperRead par zone, wrongPenalty), `engine.ts` (pivotContactBonus, memoire shoot-zone, causes), `engine.test.ts` (3 tests P2).
+
+## D-017 - Defense rejouable : fenetre synchrone + registre complet
+
+- Date : 2026-09-18
+- Statut : adoptee (retour playtest : aucun ralentissement ressenti, contestation invisible, registre defensif reduit a 1 option loin du porteur ; le setTimeout 1100 ms se faisait ecraser par la boucle)
+- Decision : la contestation ouvre sa fenetre de facon SYNCHRONE et fige la simulation jusqu'au choix du coach (plus de setTimeout) ; `defensiveIntents` propose tout le registre (mark/help/intercept/press/retreat) quelle que soit la distance — tenter un marquage a 20 m se punit par la resolution, pas par l'interface. Le gate moitie de terrain (x <= 20) reste : pas de fenetre hors zone a defendre.
+- Raison : une fenetre defensive qui ne s'ouvre jamais ou s'ouvre en douce vaut zero ; une option defensive interdite par l'interface au lieu d'etre punie par le moteur, c'est le meme bug que le top-4 offensif.
+- Impact : `useMatchEngine.ts` (fenetre synchrone, DEFENSIVE_SLOWDOWN_MS supprime), `engine.ts` (registre complet), `engine.test.ts` (test registre).
