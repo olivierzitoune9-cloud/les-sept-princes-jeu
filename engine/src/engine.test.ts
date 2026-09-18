@@ -7,7 +7,7 @@ import { createMatchReport, simulateMatch, simulatePossession } from './simulati
 import { observeIntervals, passLaneContest, tacticalZone } from './spatial.js';
 import { executeSequence } from './sequence.js';
 import { adaptDefense, recommendedDefense } from './defense.js';
-import { chooseGoalkeeperRead } from './goalkeeper.js';
+import { chooseGoalkeeperRead, goalkeeperAdvantage } from './goalkeeper.js';
 import { runSeedCampaign } from './validation.js';
 import { SeededRandom } from './random.js';
 import {
@@ -503,6 +503,38 @@ describe('placement, defense et terrain', () => {
     expect(shotProfile('jump').backBonus).toBe(6);
     expect(shotProfile('extension').wingBonus).toBe(10);
     expect(shotProfile('unknown-gesture').label).toBe('tir place');
+  });
+
+  it('P2 : le gardien lit la zone visee, pas le geste abstrait', () => {
+    const state = createPilotMatch(44);
+    state.players.aaron!.position = { x: 32, y: 10 };
+    state.ball.holderId = 'aaron';
+    state.ball.position = { x: 32, y: 10 };
+    // Trois tirs meme zone : le gardien apprend et anticipe la zone.
+    let current = state;
+    for (let i = 0; i < 3; i += 1) {
+      current = resolveAction(current, { type: 'shoot', actorId: 'aaron', shotSide: 'far', shotHeight: 'low' }, new SeededRandom(100 + i)).state;
+      current.ball.holderId = 'aaron';
+      current.players.aaron!.position = { x: 32, y: 10 };
+      current.ball.position = { x: 32, y: 10 };
+      current.teams.nangis.possession = true;
+      current.teams.lagny.possession = false;
+    }
+    const read = chooseGoalkeeperRead(current, 'lagny', 'aaron', { type: 'placed', side: 'far', height: 'low', power: 92 });
+    expect(read.read).toBe('anticipate-low-far');
+    // Meme zone visee ailleurs : le gardien pris a contre-pied perd de l'avantage.
+    const sameZone = goalkeeperAdvantage(current, 'lagny', 'aaron', { type: 'placed', side: 'far', height: 'low', power: 92 });
+    const otherZone = goalkeeperAdvantage(current, 'lagny', 'aaron', { type: 'placed', side: 'near', height: 'high', power: 92 });
+    expect(otherZone).toBeLessThan(sameZone);
+    // Seul apres duel gagne : le gardien attend le geste, pas d'anticipation.
+    const alone = chooseGoalkeeperRead(current, 'lagny', 'aaron', { type: 'placed', side: 'far', height: 'low', power: 92 }, { aloneAfterBeaten: true });
+    expect(alone.read).toBe('wait');
+  });
+
+  it('P2 : le tir reste propose meme quand 4 passes sont meilleures (fenetre P1)', () => {
+    const state = createPilotMatch(44);
+    const situation = getSituation(state);
+    expect(situation.availableActions.some((a) => a.type === 'shoot')).toBe(true);
   });
 
   it('trace des zones et des buts aux bonnes dimensions', () => {

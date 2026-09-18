@@ -718,10 +718,16 @@ const refreshActions = useCallback((state: MatchState, focusId?: string | null) 
     if (situation.availableActions.some((action) => action.type === 'shoot')) {
       buildShotOptions(holder.id, state).forEach((shot) => unique.set(shot.id, shot))
     }
-    // P1 : fenetre courte. Les 4 meilleures estimations, tri decroissant.
-    const list = Array.from(unique.values())
+    // P1 : fenetre courte mais le tir ne doit JAMAIS etre evince (sinon jeu
+    // injouable : 4 passes > tir = plus de tir propose). Le tir moteur passe
+    // en premier, puis les 3 meilleures autres options.
+    const shootActions = Array.from(unique.values()).filter((a) => a.intent.type === 'shoot')
+    const otherActions = Array.from(unique.values())
+      .filter((a) => a.intent.type !== 'shoot')
       .sort((a, b) => b.estimatedSuccess - a.estimatedSuccess)
-      .slice(0, OFFENSIVE_WINDOW_MAX)
+      .slice(0, Math.max(0, OFFENSIVE_WINDOW_MAX - shootActions.length))
+    const list = [...shootActions, ...otherActions]
+      .sort((a, b) => (a.intent.type === 'shoot' ? -1 : 0) - (b.intent.type === 'shoot' ? -1 : 0))
     setAvailableActions(list)
     actionsRef.current = list
     return

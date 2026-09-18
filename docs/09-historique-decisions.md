@@ -121,3 +121,11 @@ Ce fichier trace les decisions qui structurent le projet. Une nouvelle decision 
 - Decision : quand le porteur Lagny entre en zone de decision (moitie Nangis), le temps ralentit 1100 ms avec message de lecture avant d'ouvrir la fenetre de contestation ; garde-fou d'unicite (une seule fenetre a la fois, sinon l'IA defend) ; fenetre offensive limitee aux 4 meilleures estimations moteur ; les courses et croises se tracent en courbes pre-decision sur le terrain, preuve du trace style Inazuma Eleven DS/3DS (chemins au stylet, ordres passes/tirs/courses, duels tactiques — ici lignes et fleches abstraites, moteur seul decide). Question du trace libre laisse ouverte en O-011.
 - Raison : P1 = le coach a le temps de lire avant que la resolution ne se joue ; les options se voient ou elles vont.
 - Impact : `useMatchEngine.ts` (DEFENSIVE_SLOWDOWN_MS, pendingContestRef, OFFENSIVE_WINDOW_MAX), `fieldRenderer.ts` (courbes run/cross), `10` (O-011 creee).
+
+## D-016 - Correctif P1 : le tir n'est jamais evince de la fenetre + P2 duel tireur-gardien
+
+- Date : 2026-09-18
+- Statut : adoptee (bug remonte : tir absent meme devant le but ; fenetre top-4 evincait le tir quand 4 passes estimaient mieux ; docs 03 gardien decisionnel, 14 S47-48 lecture Liam-Malone)
+- Decision : la fenetre garde le tir moteur en premier quoi qu'il arrive, puis les 3 meilleures autres options. P2 : le gardien lit la ZONE visee (cote + hauteur), pas le geste abstrait — memoire des zones par tireur (repetitions = anticipation ciblee), bonus lecture juste (+10), malus pris a contre-pied (-14), seul apres duel gagne = le gardien attend le geste. Les causes du tir tracent la zone (`zone far-low`, `goalkeeper read zone far-low`, `alone after duel won`, `pivot close range`).
+- Raison : un jeu sans tir propose est injouable ; un tir sans duel de lecture est un jet de des. Yanis a 9 m arret, Aaron lance a 6 m seul, Edgar au pivot : trois situations, trois duels differents.
+- Impact : `useMatchEngine.ts` (tir sanctuarise), `goalkeeper.ts` (GoalkeeperRead par zone, wrongPenalty), `engine.ts` (memoire shoot-zone, causes), `engine.test.ts` (2 tests P2).

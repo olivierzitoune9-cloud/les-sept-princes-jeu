@@ -628,12 +628,28 @@ export function resolveAction(state: MatchState, action: ActionIntent, random = 
     const contestedMalus = profile.needsSpace ? Math.max(0, actor.pressure - 40) * 0.25 : 0;
     const shootingPower = actor.shooting + profile.power + roleBonus + spaceBonus - context.effectiveDistance * 0.7 - actor.pressure * 0.3 + intentionModifier(action.intention) + momentumBonus - contestedMalus;
     const savePower = goalkeeper ? goalkeeper.goalkeeper + goalkeeper.anticipation * 0.35 : 0;
+    // P2 — le duel tireur-gardien se joue sur la ZONE visee : le gardien lit
+    // cote + hauteur (chooseGoalkeeperRead), bonus si lecture juste, malus si
+    // pris a contre-pied. Seul apres duel gagne, le tireur impose son rythme.
+    const shotZone = { side: action.shotSide ?? 'center' as const, height: action.shotHeight ?? 'middle' as const };
     const goalkeeperRead = goalkeeper ? goalkeeperAdvantage(nextState, goalkeeper.team, actor.id, {
       type: shotType,
-      side: action.shotSide ?? 'center',
-      height: action.shotHeight ?? 'middle',
+      side: shotZone.side,
+      height: shotZone.height,
       power: actor.shooting
-    }) : 0;
+    }, { aloneAfterBeaten: beatenNearby }) : 0;
+    // P2 — memoire des zones : le gardien apprend ou ce tireur vise vraiment.
+    // Prochain tir dans la meme zone = anticipation possible (doc 03, 14).
+    if (goalkeeper) {
+      const zoneKey = `shoot-zone:${shotZone.side}:${shotZone.height}`;
+      const previous = nextState.memory.patterns[zoneKey];
+      nextState.memory.patterns[zoneKey] = {
+        key: zoneKey,
+        occurrences: (previous?.occurrences ?? 0) + 1,
+        confidence: Math.min(1, (previous?.confidence ?? 0) + 0.15),
+        lastSeenAt: nextState.timeSeconds
+      };
+    }
     // Reponse defensive sur le tir : un bloc monte au bon moment fait chuter
     // le tir (doc 00 : bloc au bon moment). Le repli concede le tir lointain.
     const contestShootBonus = action.contestedBy
@@ -653,8 +669,8 @@ export function resolveAction(state: MatchState, action: ActionIntent, random = 
       actorId: actor.id,
       result: goal ? 'goal' : 'save',
       causes: goal
-        ? [profile.label, actor.role === 'wing' ? 'wing angle managed' : actor.role === 'back' ? 'back range' : 'close range', beatenNearby ? 'defender beaten' : openness > 0.5 ? 'open interval' : 'shot quality', momentum >= 40 ? 'run-up momentum' : 'timing', ...retreatCause]
-        : [action.contestedBy ? 'defensive block timing' : 'goalkeeper reading', actor.role === 'wing' && shotType !== 'extension' && shotType !== 'roucoulette' ? 'closed angle' : 'pressure', 'shot distance', ...(momentum >= 40 ? ['run-up momentum faded'] : []), ...retreatCause]
+        ? [profile.label, actor.role === 'wing' ? 'wing angle managed' : actor.role === 'back' ? 'back range' : actor.role === 'pivot' ? 'pivot close range' : 'close range', beatenNearby ? 'alone after duel won' : openness > 0.5 ? 'open interval' : 'shot quality', momentum >= 40 ? 'run-up momentum' : 'timing', `zone ${shotZone.side}-${shotZone.height}`, ...retreatCause]
+        : [action.contestedBy ? 'defensive block timing' : `goalkeeper read zone ${shotZone.side}-${shotZone.height}`, actor.role === 'wing' && shotType !== 'extension' && shotType !== 'roucoulette' ? 'closed angle' : 'pressure', 'shot distance', ...(momentum >= 40 ? ['run-up momentum faded'] : []), ...retreatCause]
     };
     if (goalkeeper) {
       eventData.targetId = goalkeeper.id;
