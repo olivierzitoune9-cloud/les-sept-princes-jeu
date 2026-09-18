@@ -1,4 +1,4 @@
-# 06 - Document fonctionnel
+do# 06 - Document fonctionnel
 
 ## Statut et sources
 

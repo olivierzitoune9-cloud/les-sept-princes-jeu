@@ -1,0 +1,65 @@
+# Historique des sessions
+
+## Session 1 — 18 septembre 2026 (matin) : première interface + déploiement
+
+- Création de l'interface React + Vite (Field, HUD, ActionPanel, MatchReport, hook useMatchEngine).
+- Intégration du moteur TypeScript, animation par interpolation.
+- Configuration GitHub (`olivierzitoune9-cloud/les-sept-princes-jeu`) + Vercel (Framework Vite, Root `app`, build `cd .. && npm run build:all`).
+- Plusieurs échecs de build Vercel (TS2322, TS2448, puis erreurs de syntaxe TS1005/TS1128 corrigées par réécriture du hook, commit `b19c4bb`).
+- **Cause réelle du blocage découverte en session 2** : `b19c4bb` n'avait jamais été poussé. Aucun code à corriger de plus.
+
+## Session 2 — 18 septembre 2026 (après-midi) : déblocage déploiement, puis refonte interface
+
+### 1. Diagnostic déploiement
+- Le build Vercel tournait sur `16cac1d` (ancien), pas sur `b19c4bb` (local).
+- Validation locale de la commande exacte de Vercel (`npm run build:all`) : exit 0, `app/dist` généré.
+- Après push de l'utilisateur : **déploiement Vercel vert**.
+- Fragilités notées : aucun lockfile versionné (`.gitignore` racine ignore `package-lock.json`), deux `vercel.json` (le racine est inerte).
+
+### 2. Retour utilisateur : « injouable »
+Reproches : trop lent ; pause/reprise mal faite ; pas de possession ; attaque/défense médiocres ; pas de défense 0-6 ; pas de but à l'écran. Conclusion assumée : **l'interface est à refaire**.
+
+### 3. Refonte complète de l'interface
+- `fieldRenderer.ts` : réécrit — géométrie importée du moteur (aucune duplication), zones 6/9/7 m, limite 4 m, cages derrière la ligne de but ouvertes vers l'extérieur, ballon, jetons numérotés (licite : cercles + texte uniquement).
+- `Field.tsx` : canvas en mètres × échelle, zoom adaptatif, interpolation continue, clic converti en coordonnées terrain.
+- `useMatchEngine.ts` : réécrit —
+  - fenêtre de décision **uniquement quand Nangis a la balle** en mode Coach (suppression du compteur `actionCount % 2`, écart O-003 fermé côté code) ;
+  - vitesses 1×/2×/4×/8× ; mode Coach/Auto ; « Laisser l'IA jouer » ;
+  - actions du moteur : passes nommées, duel, fixation, croisé, course ;
+  - **tirs paramétrés** via `shotType`/`shotSide`/`shotHeight` du moteur (appui, centre, opposée haute, lob, roucoulette) ;
+  - **défense coach** : systèmes 6-0 / 1-5 / 1-2-3 / Hybride + temps mort via `changeSystem`/`callTimeout` ;
+  - seed fixe 44512 affichée et rejouable (O-005 côté code).
+- `HUD.tsx` : score, chrono + mi-temps, possession, tous les contrôles, seed.
+- `App.tsx` : re-câblé.
+
+### 4. Extension du moteur
+- `court.ts` : géométrie complète (buts, zones 6 m arc + poteaux, 9 m coupé aux touches, 7 m, 4 m, zone de changement), symétrisée pour les deux camps.
+- `formation.ts` : placement défensif par système, transition, pressing.
+- `possession.ts` : `installPossession` (remises en jeu après but/arrêt/interception), `stepShapes` (replacement), `playAction` (une action = résolution + conséquence collective).
+- `engine.ts`/`spatial.ts`/`match.ts`/`simulation.ts`/`index.ts` : cohérence avec le nouveau contrat.
+
+### 5. Validation
+- Moteur : **26/26 tests, exit 0**. Un test de géométrie corrigé (le test lui-même était impossible : il exigeait min et max inversés sur le but de Lagny).
+- App : typecheck 0 erreur ; build production Vite OK (54 modules, ~186 kB JS, exit 0).
+- Contrôle licite : cercles, numéros, texte ; aucune représentation animée ; aucune musique ; aucun pari.
+
+### 6. Notes de session mises à jour
+- `STATUS.md` : état réel du projet.
+- `NOTES_POUR_NOUVELLE_CONV.md` : reprise de session (à lire en premier).
+- Le présent fichier.
+
+## Ce qui reste ouvert (pour la session suivante)
+
+- Trajectoires visibles pendant la décision (Phase B du doc 16 pas 100 % fermée).
+- Rapport de match causal (doc 11).
+- Fermeture documentaire O-003/O-005 (docs/10) + décisions D-010/D-011 (docs/09).
+- Phase C (20 parties, 100 seeds) puis Phase D (calibration chapitres 44-48).
+- Exposer `mark`/`help` au coach pendant la possession adverse.
+- Hygiène déploiement : versionner les lockfiles, supprimer le `vercel.json` racine inerte.
+
+## Leçons de session
+
+1. Un déploiement rouge n'implique pas un bug de code : vérifier d'abord `git log origin/main -1`.
+2. Le retour utilisateur brutal (« injouable ») a plus de valeur qu'un statut optimiste : ne jamais déclarer « validé » sans preuve (doc 11).
+3. L'interface doit consommer le moteur, jamais recoder : toutes les nouveautés (tirs, défenses, remises en jeu) existaient déjà côté moteur ou s'y ajoutent.
+4. Terminal : une commande à la fois, redirection vers fichier temporaire, lecture du fichier.

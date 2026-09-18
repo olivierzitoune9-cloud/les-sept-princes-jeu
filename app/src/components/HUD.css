@@ -1,129 +1,218 @@
 .hud {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem 2rem;
-  background: var(--bg-medium);
-  border-bottom: 1px solid var(--line-color);
-  min-height: 60px;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 16px;
+  background: rgba(13, 18, 26, 0.92);
+  border-bottom: 1px solid rgba(150, 172, 200, 0.18);
 }
 
-.hud-left,
-.hud-center,
-.hud-right {
-  flex: 1;
+.hud-scores {
   display: flex;
   align-items: center;
-}
-
-.hud-center {
   justify-content: center;
-  gap: 2rem;
-}
-
-.hud-right {
-  justify-content: flex-end;
-  gap: 1rem;
+  gap: 26px;
 }
 
 .team-score {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 10px;
+  opacity: 0.75;
+  transition: opacity 0.3s;
+}
+
+.team-score.with-ball {
+  opacity: 1;
 }
 
 .team-name {
-  font-weight: 600;
-  font-size: 1rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  font-size: 13px;
+  letter-spacing: 2px;
+  font-weight: 700;
 }
 
 .team-name.nangis {
-  color: var(--nangis-color);
+  color: #7cb0fb;
 }
 
 .team-name.lagny {
-  color: var(--lagny-color);
+  color: #f79a9a;
 }
 
 .score {
-  font-size: 2rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  min-width: 3rem;
+  font-size: 26px;
+  font-weight: 800;
+  color: #eef2f8;
+  min-width: 26px;
   text-align: center;
 }
 
+.hud-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
 .chrono {
-  font-size: 1.5rem;
-  font-weight: 600;
-  color: var(--text-secondary);
+  font-size: 22px;
+  font-weight: 700;
+  color: #eef2f8;
   font-variant-numeric: tabular-nums;
 }
 
-.controls {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-}
-
-.control-button {
-  padding: 0.5rem 1rem;
-  background: var(--bg-light);
-  color: var(--text-primary);
-  border-radius: 4px;
-  font-size: 0.875rem;
-  font-weight: 500;
-  transition: background 0.2s;
-}
-
-.control-button:hover:not(:disabled) {
-  background: var(--bg-dark);
-}
-
-.control-button.active {
-  background: var(--action-color);
-  color: var(--bg-dark);
-}
-
-.speed-controls {
-  display: flex;
-  gap: 0.25rem;
-  background: var(--bg-light);
-  border-radius: 4px;
-  padding: 0.25rem;
-}
-
-.speed-button {
-  padding: 0.375rem 0.75rem;
-  font-size: 0.75rem;
-  font-weight: 500;
-  border-radius: 3px;
-  color: var(--text-secondary);
-  transition: all 0.2s;
-}
-
-.speed-button:hover:not(:disabled) {
-  color: var(--text-primary);
-}
-
-.speed-button.active {
-  background: var(--action-color);
-  color: var(--bg-dark);
+.chrono .period {
+  font-size: 12px;
+  color: #93a4bb;
+  font-weight: 400;
+  margin-left: 6px;
 }
 
 .possession-indicator {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  font-size: 0.875rem;
-  color: var(--text-secondary);
+  gap: 6px;
+  font-size: 11px;
+  color: #93a4bb;
 }
 
 .possession-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--ball-color);
+  background: #93a4bb;
+}
+
+.possession-dot.nangis {
+  background: #3b82f6;
+  box-shadow: 0 0 6px rgba(59, 130, 246, 0.8);
+}
+
+.possession-dot.lagny {
+  background: #ef4444;
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.8);
+}
+
+.hud-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.control-button {
+  background: #1e2836;
+  color: #eef2f8;
+  border: 1px solid rgba(150, 172, 200, 0.3);
+  border-radius: 8px;
+  padding: 6px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.control-button:hover:not(:disabled) {
+  background: #28354a;
+}
+
+.control-button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.control-button.ai {
+  border-color: rgba(52, 211, 153, 0.5);
+  color: #34d399;
+}
+
+.speed-controls,
+.mode-controls {
+  display: flex;
+  gap: 4px;
+}
+
+.speed-button,
+.mode-button {
+  background: transparent;
+  color: #93a4bb;
+  border: 1px solid rgba(150, 172, 200, 0.25);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.speed-button.active,
+.mode-button.active {
+  background: rgba(59, 130, 246, 0.18);
+  color: #eef2f8;
+  border-color: rgba(59, 130, 246, 0.5);
+}
+
+.hud-tactics {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.tactics-label {
+  font-size: 11px;
+  color: #93a4bb;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-right: 4px;
+}
+
+.system-button {
+  background: transparent;
+  color: #93a4bb;
+  border: 1px solid rgba(150, 172, 200, 0.25);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.system-button.active {
+  background: rgba(52, 211, 153, 0.15);
+  color: #34d399;
+  border-color: rgba(52, 211, 153, 0.5);
+}
+
+.timeout-button {
+  background: transparent;
+  color: #93a4bb;
+  border: 1px solid rgba(150, 172, 200, 0.25);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.timeout-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.seed-chip {
+  font-size: 11px;
+  color: #5c6b80;
+  font-variant-numeric: tabular-nums;
+  margin-left: 8px;
+}
+
+.decision-banner {
+  margin: 8px auto 0;
+  display: block;
+  width: fit-content;
+  background: rgba(250, 204, 21, 0.12);
+  border: 1px solid rgba(250, 204, 21, 0.45);
+  color: #facc15;
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 13px;
 }

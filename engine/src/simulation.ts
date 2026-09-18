@@ -2,7 +2,7 @@ import { SeededRandom } from './random.js';
 import { createPilotMatch } from './match.js';
 import { chooseNextAction } from './ai.js';
 import { adaptDefense } from './defense.js';
-import { resolveAction } from './engine.js';
+import { installPossession, playAction, type RestartKind } from './possession.js';
 import type { MatchEvent, MatchState, TeamId } from './types.js';
 
 export interface PossessionResult {
@@ -29,7 +29,11 @@ export interface MatchRun {
 }
 
 export function simulatePossession(initialState: MatchState, team: TeamId, maxActions = 8): PossessionResult {
-  let state = structuredClone(initialState);
+  // Une possession commence par une installation : l attaque se replace en
+  // transition, la defense reprend le dispositif de son moment.
+  const currentHolder = initialState.players[initialState.ball.holderId];
+  const restart: RestartKind = currentHolder && currentHolder.team === team ? 'interception' : 'centre';
+  let state = installPossession(initialState, team, restart);
   const random = new SeededRandom(state.seed + state.events.length * 31 + state.timeSeconds);
   const eventIds: number[] = [];
   for (let actionCount = 0; actionCount < maxActions; actionCount += 1) {
@@ -37,27 +41,19 @@ export function simulatePossession(initialState: MatchState, team: TeamId, maxAc
     if (!decision) {
       return { state, eventIds, outcome: 'turnover' };
     }
-    const resolution = resolveAction(state, decision.action, random);
-    state = resolution.state;
-    eventIds.push(resolution.event.id);
-    if (resolution.event.result === 'goal') {
-      state.teams[team].possession = false;
-      const nextTeam: TeamId = team === 'nangis' ? 'lagny' : 'nangis';
-      state.teams[nextTeam].possession = true;
-      const restartPlayer = Object.values(state.players).find((player) => player.team === nextTeam && player.isOnCourt && player.role !== 'goalkeeper');
-      if (restartPlayer) {
-        state.ball.holderId = restartPlayer.id;
-        state.ball.position = { ...restartPlayer.position };
-      }
+    const played = playAction(state, decision.action, random);
+    state = played.state;
+    eventIds.push(played.event.id);
+    if (played.event.result === 'goal') {
       return { state, eventIds, outcome: 'goal' };
     }
-    if (resolution.event.result === 'save') {
+    if (played.event.result === 'save') {
       return { state, eventIds, outcome: 'save' };
     }
-    if (resolution.event.result === 'intercepted') {
+    if (played.event.result === 'intercepted') {
       return { state, eventIds, outcome: 'turnover' };
     }
-    if (resolution.event.result === 'foul-defense') {
+    if (played.event.result === 'foul-defense') {
       return { state, eventIds, outcome: 'foul' };
     }
     if (!state.teams[team].possession) {
@@ -68,13 +64,13 @@ export function simulatePossession(initialState: MatchState, team: TeamId, maxAc
 }
 
 export function simulateMatch(seed = 44, maxPossessions = 60): MatchRun {
-  let state = createPilotMatch(seed);
+  let state = installPossession(createPilotMatch(seed), 'nangis', 'centre');
   let team: TeamId = 'nangis';
   const possessions: PossessionResult[] = [];
   for (let possessionIndex = 0; possessionIndex < maxPossessions && state.timeSeconds < 3600; possessionIndex += 1) {
     if (!state.teams[team].possession) {
       team = team === 'nangis' ? 'lagny' : 'nangis';
-      state.teams[team].possession = true;
+      state = installPossession(state, team, 'centre');
     }
     const possession = simulatePossession(state, team);
     state = possession.state;

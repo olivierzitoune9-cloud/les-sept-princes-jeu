@@ -8,9 +8,8 @@
 }
 
 .field-canvas {
-  transform-origin: center center;
+  display: block;
+  border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
   cursor: pointer;
-  image-rendering: crisp-edges;
-  image-rendering: -moz-crisp-edges;
-  image-rendering: -webkit-optimize-contrast;
 }

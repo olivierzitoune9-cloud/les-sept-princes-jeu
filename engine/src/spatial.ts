@@ -56,3 +56,44 @@ export function nearestDefender(state: MatchState, playerId: string): string | u
     .filter((candidate) => candidate.team !== player.team && candidate.isOnCourt && candidate.role !== 'goalkeeper')
     .sort((first, second) => Math.hypot(first.position.x - player.position.x, first.position.y - player.position.y) - Math.hypot(second.position.x - player.position.x, second.position.y - player.position.y))[0]?.id;
 }
+
+export interface LaneContest {
+  // 0 : ligne libre. 1 : un defenseur est sur la ligne.
+  value: number;
+  distance: number;
+  defenderId?: string;
+}
+
+function distanceToSegment(point: Vector2, from: Vector2, to: Vector2): number {
+  const segmentX = to.x - from.x;
+  const segmentY = to.y - from.y;
+  const lengthSquared = segmentX * segmentX + segmentY * segmentY;
+  if (lengthSquared === 0) {
+    return Math.hypot(point.x - from.x, point.y - from.y);
+  }
+  const projection = ((point.x - from.x) * segmentX + (point.y - from.y) * segmentY) / lengthSquared;
+  const clamped = Math.max(0, Math.min(1, projection));
+  return Math.hypot(point.x - (from.x + clamped * segmentX), point.y - (from.y + clamped * segmentY));
+}
+
+// Lecture de la ligne de passe : un defenseur proche du trajet ferme la ligne.
+// C est ce qui empeche une passe d etre automatique et ce qui donne un sens au bloc.
+export function passLaneContest(state: MatchState, passingTeam: TeamId, from: Vector2, to: Vector2): LaneContest {
+  const defenders = Object.values(state.players).filter(
+    (player) => player.team !== passingTeam && player.isOnCourt && player.role !== 'goalkeeper'
+  );
+  let best: LaneContest = { value: 0, distance: Number.POSITIVE_INFINITY };
+  for (const defender of defenders) {
+    const distance = distanceToSegment(defender.position, from, to);
+    if (distance < best.distance) {
+      best = { value: 0, distance, defenderId: defender.id };
+    }
+  }
+  // 1,2 m ou moins : ligne fermee. 3,5 m ou plus : ligne libre.
+  const value = Math.max(0, Math.min(1, (3.5 - best.distance) / 2.3));
+  return {
+    value,
+    distance: best.distance,
+    ...(best.defenderId ? { defenderId: best.defenderId } : {})
+  };
+}

@@ -11,15 +11,23 @@ function App() {
     matchState,
     engineState,
     isPaused,
-    selectedPlayer,
-    availableActions,
-    selectPlayer,
-    executeAction,
     togglePause,
-    setSpeed,
+    selectedPlayer,
+    selectPlayer,
+    availableActions,
+    executeAction,
     speed,
+    setSpeed,
+    controlMode,
+    setControlMode,
+    awaitingDecision,
+    decisionLabel,
+    letAiDecide,
+    setSystem,
+    takeTimeout,
     isMatchOver,
-    restartMatch
+    restartMatch,
+    seed
   } = useMatchEngine()
 
   const [showReport, setShowReport] = useState(false)
@@ -43,14 +51,25 @@ function App() {
 
   return (
     <div className="app">
-      <HUD 
+      <HUD
         matchState={matchState}
         speed={speed}
         onSpeedChange={setSpeed}
         isPaused={isPaused}
         onTogglePause={togglePause}
+        controlMode={controlMode}
+        onControlModeChange={setControlMode}
+        awaitingDecision={awaitingDecision}
+        onLetAiDecide={letAiDecide}
+        onSetSystem={setSystem}
+        onTakeTimeout={takeTimeout}
+        seed={seed}
       />
-      
+
+      {decisionLabel && (
+        <div className="decision-banner">{decisionLabel}</div>
+      )}
+
       <div className="main-container">
         <Field
           matchState={matchState}
@@ -59,7 +78,7 @@ function App() {
         />
       </div>
 
-      {selectedPlayer && availableActions.length > 0 && (
+      {awaitingDecision && selectedPlayer && availableActions.length > 0 && (
         <ActionPanel
           player={selectedPlayer}
           actions={availableActions}

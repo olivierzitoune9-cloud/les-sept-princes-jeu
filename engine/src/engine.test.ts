@@ -1,15 +1,29 @@
 import { describe, expect, it } from 'vitest';
 import { createPilotMatch } from './match.js';
-import { getSituation, resolveAction, simulatePilotSequence } from './engine.js';
+import { SHOOTING_RANGE, getSituation, resolveAction, simulatePilotSequence } from './engine.js';
 import { chooseNextAction } from './ai.js';
 import { callTimeout, changeSystem, setSevenPlayer, substitute } from './coaching.js';
 import { createMatchReport, simulateMatch, simulatePossession } from './simulation.js';
-import { observeIntervals, tacticalZone } from './spatial.js';
+import { observeIntervals, passLaneContest, tacticalZone } from './spatial.js';
 import { executeSequence } from './sequence.js';
 import { adaptDefense, recommendedDefense } from './defense.js';
 import { chooseGoalkeeperRead } from './goalkeeper.js';
 import { runSeedCampaign } from './validation.js';
 import { SeededRandom } from './random.js';
+import {
+  CENTRE,
+  COURT_LENGTH,
+  COURT_WIDTH,
+  GOAL_DEPTH,
+  distanceToGoal,
+  freeThrowLine,
+  goalAreaLine,
+  goalFrame,
+  goalPostLateral
+} from './court.js';
+import { defensiveBlock, shapeTargets } from './formation.js';
+import { installPossession, playAction, stepShapes } from './possession.js';
+import type { MatchState } from './types.js';
 
 describe('pilot match engine', () => {
   it('exposes contextual actions for the current holder', () => {
@@ -179,5 +193,111 @@ describe('pilot match engine', () => {
     expect(report.runs).toBe(12);
     expect(report.distinctScores).toBeGreaterThanOrEqual(3);
     expect(report.adaptations).toBeGreaterThan(0);
+  });
+});
+
+describe('placement, defense et terrain', () => {
+  it('installe un bloc de six defenseurs devant le but defendu', () => {
+    const state = createPilotMatch(44);
+    const block = defensiveBlock(state, 'lagny');
+    expect(block).toHaveLength(6);
+    expect(block.every((point) => point.x > 30 && point.x < 36)).toBe(true);
+    expect(new Set(block.map((point) => point.y.toFixed(2))).size).toBe(6);
+    const positions = Object.values(state.players)
+      .filter((player) => player.isOnCourt)
+      .map((player) => `${player.position.x.toFixed(2)}:${player.position.y.toFixed(2)}`);
+    expect(new Set(positions).size).toBe(positions.length);
+  });
+
+  it('propose le tir depuis la distance d attaque et jamais depuis la largeur', () => {
+    const state = createPilotMatch(44);
+    state.players.yanis!.position = { x: 20, y: 17 };
+    expect(getSituation(state).availableActions.filter((action) => action.type === 'shoot')).toHaveLength(0);
+    state.players.yanis!.position = { x: 20 + SHOOTING_RANGE - 1, y: 10 };
+    expect(getSituation(state).availableActions.filter((action) => action.type === 'shoot')).toHaveLength(1);
+    expect(distanceToGoal({ x: 31, y: 10 }, 'nangis')).toBe(9);
+    expect(distanceToGoal({ x: 20, y: 17 }, 'nangis')).toBe(20);
+  });
+
+  it('ferme une ligne de passe quand un defenseur se place dessus', () => {
+    const state = createPilotMatch(44);
+    const from = { x: 20, y: 10 };
+    const to = { x: 18, y: 13.5 };
+    const open = passLaneContest(state, 'nangis', from, to);
+    state.players.mael!.position = { x: 19, y: 11.7 };
+    const closed = passLaneContest(state, 'nangis', from, to);
+    expect(open.value).toBe(0);
+    expect(closed.value).toBeGreaterThan(0.5);
+    expect(closed.defenderId).toBe('mael');
+  });
+
+  it('fait bouger le bloc defensif apres chaque action', () => {
+    const state = createPilotMatch(44);
+    const before = defensiveBlock(state, 'lagny');
+    const played = playAction(state, { type: 'fix', actorId: 'yanis', targetId: 'kael' }, new SeededRandom(7));
+    const after = defensiveBlock(played.state, 'lagny');
+    expect(played.state.events.some((event) => event.type === 'defensive-shift')).toBe(true);
+    expect(after).not.toEqual(before);
+  });
+
+  it('donne a chaque dispositif une forme distincte', () => {
+    const state = createPilotMatch(44);
+    const mostAdvanced = (shape: '6-0' | '1-5' | '1-2-3') =>
+      Math.min(...Object.values(shapeTargets(state, 'lagny', shape)).map((target) => target.x));
+    expect(mostAdvanced('6-0')).toBeGreaterThan(mostAdvanced('1-5'));
+    expect(mostAdvanced('1-5')).toBeGreaterThan(mostAdvanced('1-2-3'));
+  });
+
+  it('relance au gardien apres un arret et au centre apres un but', () => {
+    let saveState: MatchState | undefined;
+    let goalState: MatchState | undefined;
+    for (let attempt = 1; attempt <= 120 && (!saveState || !goalState); attempt += 1) {
+      const base = createPilotMatch(attempt);
+      base.players.aaron!.position = { x: 32, y: 10 };
+      base.ball.holderId = 'aaron';
+      base.ball.position = { x: 32, y: 10 };
+      // Le generateur lineaire donne des premieres valeurs tres proches pour des
+      // seeds voisines : on espace les seeds pour couvrir les deux issues.
+      const shot = playAction(base, { type: 'shoot', actorId: 'aaron' }, new SeededRandom(attempt * 7919 + 13));
+      if (shot.event.result === 'save' && !saveState) saveState = shot.state;
+      if (shot.event.result === 'goal' && !goalState) goalState = shot.state;
+    }
+    expect(saveState?.ball.holderId).toBe('teddy');
+    expect(saveState?.teams.lagny.possession).toBe(true);
+    expect(goalState?.teams.lagny.possession).toBe(true);
+    expect(goalState?.ball.holderId).toBe('kael');
+    expect(goalState?.players.kael?.position).toEqual(CENTRE);
+  });
+
+  it('installe la possession en transition puis converge vers l attaque', () => {
+    const state = installPossession(createPilotMatch(44), 'nangis', 'centre');
+    const attackTargets = shapeTargets(state, 'nangis', 'attack');
+    const spread = (candidate: MatchState) =>
+      Object.entries(attackTargets)
+        .filter(([id]) => id !== candidate.ball.holderId && candidate.players[id]?.role !== 'goalkeeper')
+        .reduce((total, [id, target]) => {
+          const player = candidate.players[id];
+          if (!player) return total;
+          return total + Math.hypot(player.position.x - target.x, player.position.y - target.y);
+        }, 0);
+    const before = spread(state);
+    let current = state;
+    for (let step = 0; step < 8; step += 1) {
+      current = stepShapes(current).state;
+    }
+    expect(spread(current)).toBeLessThan(before);
+  });
+
+  it('trace des zones et des buts aux bonnes dimensions', () => {
+    const area = goalAreaLine('nangis');
+    expect(Math.max(...area.map((point) => point.x))).toBeCloseTo(6, 5);
+    expect(area.every((point) => point.y >= 0 && point.y <= COURT_WIDTH)).toBe(true);
+    const nine = freeThrowLine('lagny');
+    expect(Math.min(...nine.map((point) => point.x))).toBeCloseTo(COURT_LENGTH - 9, 5);
+    expect(nine.every((point) => point.y >= 0 && point.y <= COURT_WIDTH)).toBe(true);
+    const frame = goalFrame('lagny');
+    expect(Math.min(...frame.map((point) => point.x))).toBe(COURT_LENGTH);
+    expect(Math.max(...frame.map((point) => point.x))).toBeCloseTo(COURT_LENGTH + GOAL_DEPTH, 5);
+    expect(goalPostLateral()).toEqual([8.5, 11.5]);
   });
 });

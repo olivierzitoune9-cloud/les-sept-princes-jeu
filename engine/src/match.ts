@@ -1,4 +1,5 @@
 import type { DefensiveSystem, MatchState, PlayerRole, PlayerState, TeamId, Vector2 } from './types.js';
+import { placeTeam } from './formation.js';
 
 interface PlayerSeed {
   id: string;
@@ -26,7 +27,7 @@ const players: PlayerSeed[] = [
   { id: 'liam', name: 'Liam', team: 'nangis', role: 'goalkeeper', position: { x: 2, y: 10 }, passing: 70, reception: 75, duel: 40, defense: 80, anticipation: 86, shooting: 0, goalkeeper: 88, acceleration: 55 },
   { id: 'malone', name: 'Malone', team: 'lagny', role: 'wing', position: { x: 36, y: 16 }, passing: 78, reception: 86, duel: 88, defense: 68, anticipation: 76, shooting: 96, goalkeeper: 0, acceleration: 91 },
   { id: 'mael', name: 'Mael', team: 'lagny', role: 'back', position: { x: 28, y: 13 }, passing: 75, reception: 78, duel: 89, defense: 84, anticipation: 86, shooting: 90, goalkeeper: 0, acceleration: 90 },
-  { id: 'kael', name: 'Kael', team: 'lagny', role: 'center', position: { x: 20, y: 10 }, passing: 92, reception: 88, duel: 82, defense: 92, anticipation: 94, shooting: 84, goalkeeper: 0, acceleration: 82 },
+  { id: 'kael', name: 'Kael', team: 'lagny', role: 'center', position: { x: 24, y: 10 }, passing: 92, reception: 88, duel: 82, defense: 92, anticipation: 94, shooting: 84, goalkeeper: 0, acceleration: 82 },
   { id: 'elio', name: 'Elio', team: 'lagny', role: 'back', position: { x: 12, y: 13 }, passing: 86, reception: 82, duel: 76, defense: 78, anticipation: 86, shooting: 80, goalkeeper: 0, acceleration: 76 },
   { id: 'neo', name: 'Neo', team: 'lagny', role: 'wing', position: { x: 4, y: 16 }, passing: 70, reception: 80, duel: 82, defense: 70, anticipation: 77, shooting: 84, goalkeeper: 0, acceleration: 92 },
   { id: 'karim', name: 'Karim', team: 'lagny', role: 'pivot', position: { x: 13, y: 10 }, passing: 72, reception: 80, duel: 83, defense: 86, anticipation: 78, shooting: 79, goalkeeper: 0, acceleration: 60 },
@@ -50,11 +51,21 @@ export function createPilotMatch(seed = 44): MatchState {
   if (!initialHolder) {
     throw new Error('Pilot roster must contain Yanis');
   }
+  const state = createInitialState(seed, playerMap, initialHolder);
+  // Engagement : Nangis part du centre en transition, Lagny est deja installee
+  // dans son 6-0 devant son but. Aucun joueur ne partage sa position.
+  placeTeam(state, 'lagny', state.teams.lagny.system);
+  placeTeam(state, 'nangis', 'transition', [initialHolder.id]);
+  state.ball.position = { ...initialHolder.position };
+  return state;
+}
+
+function createInitialState(seed: number, playerMap: Record<string, PlayerState>, holder: PlayerState): MatchState {
   return {
     seed,
     timeSeconds: 0,
     period: 1,
-    ball: { holderId: initialHolder.id, position: { ...initialHolder.position } },
+    ball: { holderId: holder.id, position: { ...holder.position } },
     players: playerMap,
     teams: {
       nangis: { id: 'nangis', score: 0, system: '6-0' as DefensiveSystem, possession: true, timeouts: 3, sevenPlayer: false },

@@ -1,9 +1,13 @@
 import { SeededRandom } from './random.js';
 import { createPilotMatch } from './match.js';
-import { observeIntervals } from './spatial.js';
+import { distanceToGoal } from './court.js';
+import { observeIntervals, passLaneContest } from './spatial.js';
 import { defensivePressure } from './defense.js';
 import { goalkeeperAdvantage, mentalSwing } from './goalkeeper.js';
 import type { ActionIntent, ActionResolution, MatchEvent, MatchState, Situation, TeamId, Vector2 } from './types.js';
+
+// Portee de tir credible, en metres. Au dela, aucun tir n est propose.
+export const SHOOTING_RANGE = 15;
 
 function distance(first: Vector2, second: Vector2): number {
   return Math.hypot(first.x - second.x, first.y - second.y);
@@ -95,7 +99,11 @@ export function getSituation(state: MatchState): Situation {
   }
   const opponents = Object.values(state.players).filter((player) => player.team !== holder.team && player.isOnCourt && player.role !== 'goalkeeper');
   const closestOpponent = opponents.sort((first, second) => distance(first.position, holder.position) - distance(second.position, holder.position))[0];
-  const teammates = Object.values(state.players).filter((player) => player.team === holder.team && player.id !== holder.id && player.isOnCourt && player.role !== 'goalkeeper');
+  // Les quatre partenaires les plus proches deviennent les options de passe,
+  // pas les quatre premiers de l effectif.
+  const teammates = Object.values(state.players)
+    .filter((player) => player.team === holder.team && player.id !== holder.id && player.isOnCourt && player.role !== 'goalkeeper')
+    .sort((first, second) => distance(first.position, holder.position) - distance(second.position, holder.position));
   const availableActions: ActionIntent[] = teammates.slice(0, 4).map((player) => ({ type: 'pass', actorId: holder.id, targetId: player.id }));
   if (closestOpponent) {
     availableActions.push({ type: 'duel', actorId: holder.id, targetId: closestOpponent.id });
@@ -105,7 +113,11 @@ export function getSituation(state: MatchState): Situation {
   if (crossTarget) {
     availableActions.push({ type: 'cross', actorId: holder.id, targetId: crossTarget.id });
   }
-  availableActions.push({ type: 'shoot', actorId: holder.id });
+  // Le tir n est propose que depuis une distance credible, mesuree sur l axe
+  // longueur par distanceToGoal. Jamais sur la largeur du terrain.
+  if (distanceToGoal(holder.position, holder.team) <= SHOOTING_RANGE) {
+    availableActions.push({ type: 'shoot', actorId: holder.id });
+  }
   const intervals = observeIntervals(state, holder.team);
   return {
     state,
@@ -133,7 +145,9 @@ export function resolveAction(state: MatchState, action: ActionIntent, random = 
     }
     const pressure = Math.max(0, actor.pressure - 30);
     const defensivePressureValue = defensivePressure(nextState.teams[opposingTeam(actor.team)].system, actor.role, action.intention);
-    const successProbability = (actor.passing + target.reception - pressure - defensivePressureValue - (distance(actor.position, target.position) * 2) + intentionModifier(action.intention)) / 160;
+    // Un defenseur sur la ligne ferme la passe : c est le bloc qui compte.
+    const lane = passLaneContest(nextState, actor.team, actor.position, target.position);
+    const successProbability = (actor.passing + target.reception - pressure - defensivePressureValue - (distance(actor.position, target.position) * 2) + intentionModifier(action.intention) - lane.value * 45) / 160;
     const success = random.chance(successProbability);
     const event = appendEvent(nextState, {
       timeSeconds: nextState.timeSeconds,
@@ -141,7 +155,9 @@ export function resolveAction(state: MatchState, action: ActionIntent, random = 
       actorId: actor.id,
       targetId: target.id,
       result: success ? 'complete' : 'intercepted',
-      causes: success ? ['passing quality', 'reception timing', 'available lane'] : ['pressure', 'distance', 'defensive reading']
+      causes: success
+        ? ['passing quality', 'reception timing', lane.value > 0.35 ? 'lane contested but released' : 'available lane']
+        : [lane.value > 0.35 ? 'defensive lane closure' : 'pressure', 'distance', 'defensive reading']
     });
     if (success) {
       nextState.ball.holderId = target.id;
@@ -321,11 +337,16 @@ export function resolveAction(state: MatchState, action: ActionIntent, random = 
       nextState.teams.nangis.possession = actor.team === 'nangis';
       nextState.teams.lagny.possession = actor.team === 'lagny';
     } else {
+      // Arret : le gardien garde le ballon et sa equipe recupere la possession.
+      // C est lui qui relance, pas un defenseur quelconque.
+      nextState.teams[actor.team].possession = false;
+      nextState.teams[opposingTeam(actor.team)].possession = true;
       if (goalkeeper) {
         nextState.ball.holderId = goalkeeper.id;
         nextState.ball.position = { ...goalkeeper.position };
+      } else {
+        transferToOpponent(nextState, actor.team);
       }
-      transferToOpponent(nextState, actor.team);
     }
     return { state: mentalSwing(nextState, actor.id, goal), event };
   }
