@@ -39,6 +39,9 @@ export function installPossession(state: MatchState, attackingTeam: TeamId, rest
   const defendingTeam = opposingTeam(attackingTeam);
   nextState.teams[attackingTeam].possession = true;
   nextState.teams[defendingTeam].possession = false;
+  // Les marquages stricts d une possession n engagent pas la suivante.
+  nextState.teams[attackingTeam].assignments = {};
+  nextState.teams[defendingTeam].assignments = {};
 
   let holderId = nextState.ball.holderId;
   if (restart === 'centre') {

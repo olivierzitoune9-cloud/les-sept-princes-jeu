@@ -1,6 +1,6 @@
 import { SeededRandom } from './random.js';
 import { createPilotMatch } from './match.js';
-import { distanceToGoal } from './court.js';
+import { distanceToGoal, attackingDirection } from './court.js';
 import { observeIntervals, passLaneContest } from './spatial.js';
 import { defensivePressure } from './defense.js';
 import { goalkeeperAdvantage, mentalSwing } from './goalkeeper.js';
@@ -113,6 +113,19 @@ export function getSituation(state: MatchState): Situation {
   if (crossTarget) {
     availableActions.push({ type: 'cross', actorId: holder.id, targetId: crossTarget.id });
   }
+  // Deplacements du porteur (doc 01 §4) : avancer, diagonale interieure,
+  // decalage exterieur. La course construit l elan du tir en appui.
+  const attackSign = holder.team === 'nangis' ? 1 : -1;
+  const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value));
+  const advanceTarget = { x: clamp(holder.position.x + attackSign * 3, 1, 39), y: holder.position.y };
+  const insideTarget = {
+    x: clamp(holder.position.x + attackSign * 2, 1, 39),
+    y: clamp(holder.position.y + (holder.position.y <= 10 ? 2.5 : -2.5), 1, 19)
+  };
+  const outsideTarget = { x: holder.position.x, y: clamp(holder.position.y + (holder.position.y <= 10 ? -3 : 3), 1, 19) };
+  availableActions.push({ type: 'run', actorId: holder.id, targetPosition: advanceTarget, runKind: 'advance' });
+  availableActions.push({ type: 'run', actorId: holder.id, targetPosition: insideTarget, runKind: 'diagonal' });
+  availableActions.push({ type: 'run', actorId: holder.id, targetPosition: outsideTarget, runKind: 'lateral' });
   // Le tir n est propose que depuis une distance credible, mesuree sur l axe
   // longueur par distanceToGoal. Jamais sur la largeur du terrain.
   if (distanceToGoal(holder.position, holder.team) <= SHOOTING_RANGE) {
@@ -138,6 +151,8 @@ export function resolveAction(state: MatchState, action: ActionIntent, random = 
   const opponent = target && target.team !== actor.team ? target : undefined;
   advanceTime(nextState, (action.type === 'move' || action.type === 'run' ? 2 : 4) + timingDuration(action.timing));
   spendEnergy(nextState, actor.id, action.type === 'duel' ? 7 : action.type === 'shoot' ? 5 : 2);
+  // L elan se dissipe entre deux actions : il faut enchainer course puis tir.
+  actor.momentum = Math.max(0, (actor.momentum ?? 0) - 15);
 
   if (action.type === 'pass') {
     if (!target || target.team !== actor.team) {
@@ -175,7 +190,7 @@ export function resolveAction(state: MatchState, action: ActionIntent, random = 
       throw new Error('A duel target must be an opponent');
     }
     const defensivePressureValue = defensivePressure(nextState.teams[opposingTeam(actor.team)].system, actor.role, action.intention);
-    const advantage = actor.duel + actor.acceleration + actor.confidence / 2 - opponent.defense - opponent.anticipation / 2 - defensivePressureValue / 2 + intentionModifier(action.intention);
+    const advantage = actor.duel + actor.acceleration + actor.confidence / 2 - opponent.defense - opponent.anticipation / 2 - defensivePressureValue / 2 + intentionModifier(action.intention) + (actor.momentum ?? 0) * 0.08;
     const contactFoul = random.chance(Math.max(0.02, (actor.pressure + opponent.pressure) / 500));
     if (contactFoul) {
       const event = appendEvent(nextState, {
@@ -260,13 +275,28 @@ export function resolveAction(state: MatchState, action: ActionIntent, random = 
     if (!action.targetPosition) {
       throw new Error('A run target is required');
     }
-    actor.position = { ...action.targetPosition };
+    // Course bornee : jamais de teleportation, chaque action deplace au plus
+    // 3,5 m (doc 17, ecart E-003).
+    const maxStep = 3.5;
+    const remaining = distance(actor.position, action.targetPosition);
+    const ratio = remaining > maxStep ? maxStep / remaining : 1;
+    actor.position = {
+      x: actor.position.x + (action.targetPosition.x - actor.position.x) * ratio,
+      y: actor.position.y + (action.targetPosition.y - actor.position.y) * ratio
+    };
+    const isCarrier = actor.id === nextState.ball.holderId;
+    if (isCarrier) {
+      // Le porteur avance avec le ballon : la course construit l elan qui
+      // alimente le tir en appui (doc 17, ecart E-002).
+      nextState.ball.position = { ...actor.position };
+      actor.momentum = Math.min(100, (actor.momentum ?? 0) + 45);
+    }
     const event = appendEvent(nextState, {
       timeSeconds: nextState.timeSeconds,
       type: 'off-ball-run',
       actorId: actor.id,
       result: 'completed',
-      causes: ['space attack', 'timing', 'defensive attention']
+      causes: isCarrier ? ['carrier advance', 'run-up built', 'shooting balance'] : ['space attack', 'timing', 'defensive attention']
     });
     return { state: nextState, event };
   }
@@ -275,7 +305,14 @@ export function resolveAction(state: MatchState, action: ActionIntent, random = 
     if (!opponent) {
       throw new Error('A mark target must be an opponent');
     }
-    actor.position = { x: opponent.position.x, y: opponent.position.y };
+    // Marquage strict persistant : l affectation survit au coulissement du
+    // bloc jusqu a la fin de la possession (rapport 14, phase B).
+    const team = nextState.teams[actor.team];
+    team.assignments = { ...(team.assignments ?? {}), [actor.id]: opponent.id };
+    actor.position = {
+      x: Math.max(0.5, Math.min(39.5, opponent.position.x - attackingDirection(actor.team) * 1.3)),
+      y: Math.max(1, Math.min(19, opponent.position.y))
+    };
     opponent.pressure = Math.min(100, opponent.pressure + 12);
     const event = appendEvent(nextState, {
       timeSeconds: nextState.timeSeconds,
@@ -283,7 +320,7 @@ export function resolveAction(state: MatchState, action: ActionIntent, random = 
       actorId: actor.id,
       targetId: opponent.id,
       result: 'applied',
-      causes: ['defensive priority', 'distance control', 'line denial']
+      causes: ['defensive priority', 'persistent assignment', 'line denial']
     });
     return { state: nextState, event };
   }
@@ -312,7 +349,10 @@ export function resolveAction(state: MatchState, action: ActionIntent, random = 
       throw new Error(`No goalkeeper for ${opposingTeam(actor.team)}`);
     }
     const distanceToGoal = actor.team === 'nangis' ? 40 - actor.position.x : actor.position.x;
-    const shootingPower = actor.shooting - distanceToGoal * 0.7 - actor.pressure * 0.3 + intentionModifier(action.intention);
+    // Tir en appui : l elan pris en course alimente la puissance (doc 17, E-002).
+    const momentum = actor.momentum ?? 0;
+    const momentumBonus = momentum * (action.shotType === 'placed' ? 0.12 : 0.06);
+    const shootingPower = actor.shooting - distanceToGoal * 0.7 - actor.pressure * 0.3 + intentionModifier(action.intention) + momentumBonus;
     const savePower = goalkeeper ? goalkeeper.goalkeeper + goalkeeper.anticipation * 0.35 : 0;
     const goalkeeperRead = goalkeeper ? goalkeeperAdvantage(nextState, goalkeeper.team, actor.id, {
       type: action.shotType ?? 'placed',
@@ -326,7 +366,9 @@ export function resolveAction(state: MatchState, action: ActionIntent, random = 
       type: 'shoot',
       actorId: actor.id,
       result: goal ? 'goal' : 'save',
-      causes: goal ? ['shot quality', 'angle', 'timing'] : ['goalkeeper reading', 'pressure', 'shot distance']
+      causes: goal
+        ? momentum >= 40 ? ['shot quality', 'run-up momentum', 'angle'] : ['shot quality', 'angle', 'timing']
+        : momentum >= 40 ? ['goalkeeper reading', 'run-up momentum', 'pressure'] : ['goalkeeper reading', 'pressure', 'shot distance']
     };
     if (goalkeeper) {
       eventData.targetId = goalkeeper.id;
@@ -348,6 +390,8 @@ export function resolveAction(state: MatchState, action: ActionIntent, random = 
         transferToOpponent(nextState, actor.team);
       }
     }
+    // Le tir consomme l elan pris en course.
+    actor.momentum = 0;
     return { state: mentalSwing(nextState, actor.id, goal), event };
   }
 
@@ -367,6 +411,36 @@ export function resolveAction(state: MatchState, action: ActionIntent, random = 
   }
 
   throw new Error(`Unsupported action ${action.type}`);
+}
+
+// Options defensives du coach (doc 17, ecart E-001) : le marquage strict et
+// l aide sont des decisions, pas des automatismes. L interface consomme ces
+// intents et les joue par playAction, sans rien recoder.
+export function defensiveIntents(state: MatchState, defendingTeam: TeamId, focusId?: string): ActionIntent[] {
+  const holder = state.players[state.ball.holderId];
+  if (!holder || holder.team === defendingTeam) {
+    return [];
+  }
+  const focus = focusId ? state.players[focusId] : undefined;
+  const reference = focus && focus.team === defendingTeam ? focus.position : holder.position;
+  const defenders = Object.values(state.players)
+    .filter((player) => player.team === defendingTeam && player.isOnCourt && player.role !== 'goalkeeper')
+    .sort((first, second) => distance(first.position, reference) - distance(second.position, reference));
+  const defender = focus && focus.team === defendingTeam && focus.role !== 'goalkeeper' && focus.isOnCourt ? focus : defenders[0];
+  if (!defender) {
+    return [];
+  }
+  const attackers = Object.values(state.players)
+    .filter((player) => player.team !== defendingTeam && player.isOnCourt && player.role !== 'goalkeeper' && player.id !== holder.id)
+    .sort((first, second) => distance(first.position, defender.position) - distance(second.position, defender.position));
+  const intents: ActionIntent[] = [];
+  if (distance(defender.position, holder.position) <= 6) {
+    intents.push({ type: 'mark', actorId: defender.id, targetId: holder.id });
+  } else if (attackers[0]) {
+    intents.push({ type: 'mark', actorId: defender.id, targetId: attackers[0].id });
+  }
+  intents.push({ type: 'help', actorId: defender.id, targetId: holder.id });
+  return intents;
 }
 
 export function simulatePilotSequence(seed = 44): MatchState {

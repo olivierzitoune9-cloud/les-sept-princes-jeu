@@ -42,7 +42,7 @@ players.push(
 );
 
 function createPlayer(seed: PlayerSeed): PlayerState {
-  return { ...seed, energy: 100, pressure: 0, confidence: 70, isOnCourt: ['pierre', 'erwan', 'yanis', 'aaron', 'elian', 'edgar', 'liam', 'malone', 'mael', 'kael', 'elio', 'neo', 'karim', 'teddy'].includes(seed.id) };
+  return { ...seed, energy: 100, momentum: 0, pressure: 0, confidence: 70, isOnCourt: ['pierre', 'erwan', 'yanis', 'aaron', 'elian', 'edgar', 'liam', 'malone', 'mael', 'kael', 'elio', 'neo', 'karim', 'teddy'].includes(seed.id) };
 }
 
 export function createPilotMatch(seed = 44): MatchState {

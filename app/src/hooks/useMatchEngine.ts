@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { createPilotMatch } from '@engine/match.js'
 import { chooseNextAction } from '@engine/ai.js'
-import { getSituation } from '@engine/engine.js'
+import { defensiveIntents, getSituation } from '@engine/engine.js'
 import { playAction, installPossession } from '@engine/possession.js'
 import { changeSystem, callTimeout } from '@engine/coaching.js'
 import { SeededRandom } from '@engine/random.js'
@@ -113,7 +113,17 @@ const CAUSE_TRANSLATIONS: Record<string, string> = {
   'angle': 'angle ouvert',
   'timing': 'timing',
   'goalkeeper reading': 'lecture du gardien',
-  'shot distance': 'tir de trop loin'
+  'shot distance': 'tir de trop loin',
+  'carrier advance': 'avance ballon en main',
+  'run-up built': 'élan pris',
+  'shooting balance': 'appuis calés',
+  'run-up momentum': 'tir en appui porté par l\'élan',
+  'defensive priority': 'priorité défensive',
+  'persistent assignment': 'marquage strict persistant',
+  'line denial': 'ligne de passe barrée',
+  'cover teammate': 'couverture du coéquipier',
+  'close interval': 'intervalle fermé',
+  'space abandoned elsewhere': 'espace abandonné ailleurs'
 }
 
 function translateCauses(causes: string[]): string {
@@ -207,6 +217,34 @@ function formatCausalFeedback(
     }
   }
 
+  if (event.type === 'off-ball-run') {
+    const isCarrier = (event.causes || []).includes('carrier advance')
+    return {
+      title: isCarrier ? `${actorName} avance ballon en main` : `${actorName} attaque l'espace`,
+      detail: detail || (isCarrier ? 'Élan pris : le tir en appui gagne en puissance' : 'Démarquage hors du bloc'),
+      success: true,
+      type: 'run'
+    }
+  }
+
+  if (event.type === 'mark') {
+    return {
+      title: `${actorName} colle ${targetName}`,
+      detail: detail || 'Marquage strict : la ligne de passe est barrée',
+      success: true,
+      type: 'mark'
+    }
+  }
+
+  if (event.type === 'defensive-help') {
+    return {
+      title: `${actorName} vient en aide face à ${targetName}`,
+      detail: detail || 'Aide posée, intervalle fermé',
+      success: true,
+      type: 'help'
+    }
+  }
+
   return {
     title: `${actorName} : ${event.type} (${event.result})`,
     detail,
@@ -273,7 +311,13 @@ export default function useMatchEngine() {
     })
 
     if (next.teams.lagny.possession) {
-      setSelectedPlayer(null)
+      // Phase defensive : on garde la selection si c est un defenseur Nangis,
+      // pour laisser le coach organiser le marquage (doc 17, ecart E-001).
+      setSelectedPlayer((selected) => {
+        if (!selected) return null
+        const kept = next.players[selected.id]
+        return kept && kept.team === 'nangis' && kept.isOnCourt ? selected : null
+      })
     }
   }, [])
 
@@ -315,12 +359,18 @@ function computeEstimatedSuccess(intent: ActionIntent, state: MatchState): numbe
 
   if (intent.type === 'shoot') {
     const dist = Math.abs((actor.team === 'nangis' ? 40 : 0) - actor.position.x)
-    const shootingPower = actor.shooting - dist * 0.7 - actor.pressure * 0.3
+    const momentum = actor.momentum ?? 0
+    const momentumBonus = momentum * (intent.shotType === 'placed' ? 0.12 : 0.06)
+    const shootingPower = actor.shooting - dist * 0.7 - actor.pressure * 0.3 + momentumBonus
     const opposingTeam = actor.team === 'nangis' ? 'lagny' : 'nangis'
     const gk = Object.values(state.players).find((p) => p.team === opposingTeam && p.role === 'goalkeeper')
     const savePower = gk ? gk.goalkeeper + gk.anticipation * 0.35 : 60
     const prob = (shootingPower - savePower + 100) / 200
     return Math.max(18, Math.min(90, Math.round(prob * 100)))
+  }
+
+  if (intent.type === 'mark' || intent.type === 'help') {
+    return 85
   }
 
   if (intent.type === 'fix') {
@@ -388,18 +438,38 @@ function describeAction(intent: ActionIntent, state: MatchState, playerId: strin
         name: `Croiser avec ${target?.name ?? '?'}`,
         description: 'Permutation collective pour décaler'
       }
-    case 'run':
+    case 'run': {
+      if (intent.runKind === 'advance') {
+        return { ...base, name: 'Avancer ballon en main', description: 'Prendre de l\'élan pour un tir en appui' }
+      }
+      if (intent.runKind === 'diagonal') {
+        return { ...base, name: 'Diagonale intérieure', description: 'Attaquer l\'axe, ballon en main' }
+      }
+      if (intent.runKind === 'lateral') {
+        return { ...base, name: 'Décalage extérieur', description: 'Ouvrir l\'angle de tir vers l\'aile' }
+      }
+      return { ...base, name: 'Course de démarquage', description: 'Attaquer l\'espace libre derrière la défense' }
+    }
+    case 'mark':
       return {
         ...base,
-        name: 'Course de démarquage',
-        description: 'Attaquer l\'espace libre derrière la défense'
+        name: `Marquer ${target?.name ?? '?'}`,
+        description: 'Marquage strict : coller, barrer la ligne de passe'
       }
-    case 'shoot':
+    case 'help':
+      return {
+        ...base,
+        name: `Aider sur ${target?.name ?? '?'}`,
+        description: 'Doubler le porteur, fermer l\'intervalle central'
+      }
+    case 'shoot': {
+      const momentum = (state.players[intent.actorId ?? '']?.momentum ?? 0)
       return {
         ...base,
         name: 'Tir',
-        description: 'Tenter sa chance au but'
+        description: momentum >= 30 ? 'Tir en appui : l\'élan est pris' : 'Tir à froid : l\'élan manque'
       }
+    }
     default:
       return null
   }
@@ -435,7 +505,9 @@ function buildShotOptions(playerId: string, state: MatchState): Action[] {
     return {
       id: `shot-${variant.shot.shotType}-${variant.shot.shotSide}-${variant.shot.shotHeight}`,
       name: variant.name,
-      description: variant.description,
+      description: (state.players[playerId]?.momentum ?? 0) >= 30
+        ? `${variant.description} · élan pris`
+        : `${variant.description} · à froid`,
       risk: tier.risk,
       quality: tier.quality,
       qualityLabel: tier.label,
@@ -452,24 +524,37 @@ function buildShotOptions(playerId: string, state: MatchState): Action[] {
 
 // Actions proposees dans la fenetre de decision Nangis : celles du moteur,
 // dont les passes vers les coequipiers, plus les tirs parametres si dispo.
-const refreshActions = useCallback((state: MatchState) => {
+const refreshActions = useCallback((state: MatchState, focusId?: string | null) => {
   const holder = state.players[state.ball.holderId]
-  if (!holder || holder.team !== 'nangis') {
-    setAvailableActions([])
+  if (holder && holder.team === 'nangis') {
+    const situation = getSituation(state)
+    const fromEngine = situation.availableActions
+      .map((intent) => describeAction(intent, state, holder.id))
+      .filter((action): action is Action => action !== null)
+    const unique = new Map<string, Action>()
+    fromEngine.forEach((action) => {
+      if (!unique.has(action.id)) unique.set(action.id, action)
+    })
+    if (situation.availableActions.some((action) => action.type === 'shoot')) {
+      buildShotOptions(holder.id, state).forEach((shot) => unique.set(shot.id, shot))
+    }
+    const list = Array.from(unique.values())
+    setAvailableActions(list)
+    actionsRef.current = list
     return
   }
-  const situation = getSituation(state)
-  const fromEngine = situation.availableActions
-    .map((intent) => describeAction(intent, state, holder.id))
-    .filter((action): action is Action => action !== null)
-  const unique = new Map<string, Action>()
-  fromEngine.forEach((action) => {
-    if (!unique.has(action.id)) unique.set(action.id, action)
-  })
-  if (situation.availableActions.some((action) => action.type === 'shoot')) {
-    buildShotOptions(holder.id, state).forEach((shot) => unique.set(shot.id, shot))
+  // Phase defensive (doc 17, ecart E-001) : le moteur fournit les intents de
+  // marquage strict et d aide. L interface ne recode aucune decision.
+  const focus = focusId ? state.players[focusId] : null
+  const usable = focus && focus.team === 'nangis' && focus.isOnCourt && focus.role !== 'goalkeeper' ? focus : null
+  if (!usable) {
+    setAvailableActions([])
+    actionsRef.current = []
+    return
   }
-  const list = Array.from(unique.values())
+  const list = defensiveIntents(state, 'nangis', usable.id)
+    .map((intent) => describeAction(intent, state, usable.id))
+    .filter((action): action is Action => action !== null)
   setAvailableActions(list)
   actionsRef.current = list
 }, [])
@@ -610,7 +695,37 @@ const refreshActions = useCallback((state: MatchState) => {
   // On sélectionne automatiquement le porteur pour que l'ActionPanel soit immédiatement affiché.
   const openDecisionWindow = useCallback((state: MatchState) => {
     const holder = state.players[state.ball.holderId]
-    if (!holder || holder.team !== 'nangis') return false
+    if (!holder) return false
+
+    if (holder.team === 'lagny') {
+      // Fenetre defensive (doc 17, ecart E-001) : une fois par possession
+      // adverse, le coach choisit le marquage strict ou l aide.
+      if (controlMode !== 'coach') return false
+      const defenders = Object.values(state.players)
+        .filter((p) => p.team === 'nangis' && p.isOnCourt && p.role !== 'goalkeeper')
+        .sort((a, b) =>
+          Math.hypot(a.position.x - holder.position.x, a.position.y - holder.position.y) -
+          Math.hypot(b.position.x - holder.position.x, b.position.y - holder.position.y)
+        )
+      const defender = defenders[0]
+      if (!defender) return false
+      setSelectedPlayer({
+        id: defender.id,
+        name: defender.name,
+        number: playerNumbers[defender.id] ?? 99,
+        team: defender.team,
+        position: defender.position,
+        role: roleLabels[defender.role],
+        hasBall: false,
+        fatigue: Math.round(defender.energy),
+        pressure: Math.round(defender.pressure)
+      })
+      setAwaitingDecision(true)
+      awaitingDecisionRef.current = true
+      setDecisionLabel(`Lagny attaque par ${holder.name} — organise la défense avec ${defender.name}`)
+      refreshActions(state, defender.id)
+      return true
+    }
 
     const uiHolder: UIPlayer = {
       id: holder.id,
@@ -629,7 +744,7 @@ const refreshActions = useCallback((state: MatchState) => {
     setDecisionLabel(`${holder.name} (#${uiHolder.number}) a la balle — à toi de jouer`)
     refreshActions(state)
     return true
-  }, [refreshActions])
+  }, [refreshActions, controlMode])
 
   // Demander a l IA de trancher : soit pour Nangis dans la fenetre ouverte, soit pour accelerer la sequence.
   const letAiDecide = useCallback(() => {
@@ -637,16 +752,26 @@ const refreshActions = useCallback((state: MatchState) => {
     if (!current || isTransitioningRef.current) return
 
     if (awaitingDecisionRef.current) {
-      const random = new SeededRandom(current.seed + current.events.length + 77)
-      const trace = chooseNextAction(current, 'nangis', random, actionCountRef.current)
-      setAwaitingDecision(false)
-      awaitingDecisionRef.current = false
-      setDecisionLabel(null)
-      if (!trace) return
-      actionCountRef.current += 1
-      const played = playAction(current, trace.action, random)
-      handlePlayedActionWithDrama(current, played)
-      return
+      const holderNow = current.players[current.ball.holderId]
+      if (holderNow && holderNow.team === 'lagny') {
+        // En defense, « IA décide » ferme la fenetre et fait jouer Lagny :
+        // on force le compteur pour ne pas rouvrir la fenetre defensive.
+        setAwaitingDecision(false)
+        awaitingDecisionRef.current = false
+        setDecisionLabel(null)
+        actionCountRef.current = 1
+      } else {
+        const random = new SeededRandom(current.seed + current.events.length + 77)
+        const trace = chooseNextAction(current, 'nangis', random, actionCountRef.current)
+        setAwaitingDecision(false)
+        awaitingDecisionRef.current = false
+        setDecisionLabel(null)
+        if (!trace) return
+        actionCountRef.current += 1
+        const played = playAction(current, trace.action, random)
+        handlePlayedActionWithDrama(current, played)
+        return
+      }
     }
 
     // Si Lagny a le ballon (phase défensive), avancer immédiatement d'un pas d'action
@@ -722,6 +847,15 @@ const selectPlayer = useCallback((playerId: string) => {
   if (player) setSelectedPlayer(player)
 }, [matchState])
 
+// Pendant la possession adverse, cliquer un defenseur Nangis lui donne ses
+// options defensives du moteur (marquage strict, aide) sans bloquer le match.
+useEffect(() => {
+  if (!engineState || !matchState) return
+  if (matchState.possession !== 'lagny') return
+  if (!selectedPlayer || selectedPlayer.team !== 'nangis') return
+  refreshActions(engineState, selectedPlayer.id)
+}, [engineState, matchState, selectedPlayer, refreshActions])
+
 const executeAction = useCallback((actionId: string) => {
   const action = actionsRef.current.find((candidate) => candidate.id === actionId)
   if (action) performAction(action)
@@ -750,9 +884,11 @@ useEffect(() => {
   const state = engineRef.current
   if (!state) return
 
-  if (controlMode === 'coach' && state.teams.nangis.possession) {
+  if (controlMode === 'coach') {
     const holder = state.players[state.ball.holderId]
-    if (holder?.team === 'nangis') {
+    // Fenetre offensive Nangis, ou fenetre defensive une fois par possession
+    // Lagny (doc 05 : pauses sur les situations significatives).
+    if (holder && (holder.team === 'nangis' || actionCountRef.current === 0)) {
       openDecisionWindow(state)
       return
     }
@@ -800,7 +936,7 @@ useEffect(() => {
 // Trajectoires tactiques pour l affichage sur le terrain pendant la fenetre de decision
 const trajectories = useMemo<TacticalTrajectory[]>(() => {
   if (!awaitingDecision || !matchState) return []
-  const holder = matchState.players.find((p) => p.hasBall)
+  const holder = (selectedPlayer && matchState.players.find((p) => p.id === selectedPlayer.id)) || matchState.players.find((p) => p.hasBall)
   if (!holder) return []
 
   return availableActions
@@ -844,10 +980,35 @@ const trajectories = useMemo<TacticalTrajectory[]>(() => {
           targetPlayerId: target.id
         }
       }
+      if (action.intent.type === 'run' && action.intent.targetPosition) {
+        return {
+          id: `traj-${action.id}`,
+          actionId: action.id,
+          type: 'run' as const,
+          from: holder.position,
+          to: action.intent.targetPosition,
+          risk: action.risk,
+          label: action.name
+        }
+      }
+      if ((action.intent.type === 'mark' || action.intent.type === 'help') && action.intent.targetId) {
+        const target = matchState.players.find((p) => p.id === action.intent.targetId)
+        if (!target) return null
+        return {
+          id: `traj-${action.id}`,
+          actionId: action.id,
+          type: 'duel' as const,
+          from: holder.position,
+          to: target.position,
+          risk: action.risk,
+          label: action.name,
+          targetPlayerId: target.id
+        }
+      }
       return null
     })
     .filter((t): t is TacticalTrajectory => t !== null)
-}, [awaitingDecision, matchState, availableActions])
+}, [awaitingDecision, matchState, availableActions, selectedPlayer])
 
 // Contexte de duel actif pour le panneau lateral
 const activeDuel = useMemo<DuelContext | null>(() => {

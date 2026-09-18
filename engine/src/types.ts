@@ -19,6 +19,7 @@ export interface PlayerState {
   role: PlayerRole;
   position: Vector2;
   energy: number;
+  momentum?: number;
   pressure: number;
   confidence: number;
   passing: number;
@@ -39,6 +40,8 @@ export interface TeamState {
   possession: boolean;
   timeouts: number;
   sevenPlayer: boolean;
+  // Marquages stricts persistants : id du defenseur vers id de l adversaire.
+  assignments?: Record<string, string>;
 }
 
 export interface BallState {
@@ -92,6 +95,8 @@ export interface ActionIntent {
   shotType?: 'placed' | 'power' | 'lob' | 'roucoulette' | 'chabala';
   shotSide?: 'near' | 'far' | 'center';
   shotHeight?: 'high' | 'low' | 'middle';
+  // Qualifie la course du porteur pour l interface (doc 01 §4).
+  runKind?: 'advance' | 'diagonal' | 'lateral';
 }
 
 export interface Situation {

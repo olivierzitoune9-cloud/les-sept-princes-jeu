@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createPilotMatch } from './match.js';
-import { SHOOTING_RANGE, getSituation, resolveAction, simulatePilotSequence } from './engine.js';
+import { SHOOTING_RANGE, defensiveIntents, getSituation, resolveAction, simulatePilotSequence } from './engine.js';
 import { chooseNextAction } from './ai.js';
 import { callTimeout, changeSystem, setSevenPlayer, substitute } from './coaching.js';
 import { createMatchReport, simulateMatch, simulatePossession } from './simulation.js';
@@ -76,6 +76,49 @@ describe('pilot match engine', () => {
     expect(mark.event.result).toBe('applied');
     const help = resolveAction(mark.state, { type: 'help', actorId: 'mael', targetId: 'aaron' }, new SeededRandom(49));
     expect(help.event.result).toBe('arrived');
+  });
+
+  it('moves the carrier with the ball and builds run-up momentum', () => {
+    const state = createPilotMatch(44);
+    const run = resolveAction(state, { type: 'run', actorId: 'yanis', targetPosition: { x: 30, y: 10 }, runKind: 'advance' }, new SeededRandom(60));
+    const runner = run.state.players.yanis!;
+    // La course est bornee : jamais de teleportation.
+    expect(runner.position.x).toBeLessThan(30);
+    expect(run.state.ball.position.x).toBe(runner.position.x);
+    expect(runner.momentum ?? 0).toBeGreaterThan(0);
+    const secondRun = resolveAction(run.state, { type: 'run', actorId: 'yanis', targetPosition: { x: 34, y: 10 }, runKind: 'advance' }, new SeededRandom(61));
+    expect((secondRun.state.players.yanis?.momentum ?? 0)).toBeGreaterThan(60);
+    const shot = resolveAction(secondRun.state, { type: 'shoot', actorId: 'yanis', shotType: 'placed', shotSide: 'near', shotHeight: 'low' }, new SeededRandom(62));
+    // Le tir consomme l elan et trace sa cause.
+    expect(shot.state.players.yanis?.momentum ?? 0).toBe(0);
+    expect(shot.event.causes).toContain('run-up momentum');
+  });
+
+  it('keeps a strict assignment alive while the block drifts', () => {
+    const state = createPilotMatch(44);
+    const marked = resolveAction(state, { type: 'mark', actorId: 'kael', targetId: 'yanis' }, new SeededRandom(63));
+    expect(marked.state.teams.lagny.assignments?.kael).toBe('yanis');
+    let drifted = marked.state;
+    for (let step = 0; step < 5; step++) {
+      drifted = stepShapes(drifted).state;
+    }
+    const kael = drifted.players.kael!;
+    const yanis = drifted.players.yanis!;
+    const gap = Math.hypot(kael.position.x - yanis.position.x, kael.position.y - yanis.position.y);
+    expect(gap).toBeLessThan(2.6);
+  });
+
+  it('proposes coach defensive intents against the ball holder', () => {
+    const state = createPilotMatch(44);
+    state.players.kael!.position = { x: 22, y: 10 };
+    const intents = defensiveIntents(state, 'lagny');
+    // Kael est au contact du porteur : le strict sur le porteur est propose.
+    expect(intents.some((intent) => intent.type === 'mark' && intent.targetId === 'yanis')).toBe(true);
+    expect(intents.some((intent) => intent.type === 'help' && intent.targetId === 'yanis')).toBe(true);
+    // Un focus arbitraire produit aussi ses options individuelles.
+    const focused = defensiveIntents(state, 'lagny', 'mael');
+    expect(focused.every((intent) => intent.actorId === 'mael')).toBe(true);
+    expect(focused.length).toBeGreaterThan(0);
   });
 
   it('interrupts a prepared sequence when the defense changes the situation', () => {

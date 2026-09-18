@@ -212,8 +212,14 @@ export function driftTeam(state: MatchState, team: TeamId, shape: TeamShape, opt
     const target = targets[player.id];
     if (!target) continue;
     let finalTarget = target;
+    const assignedAttackerId = state.teams[team].assignments?.[player.id];
+    const assignedAttacker = assignedAttackerId ? state.players[assignedAttackerId] : undefined;
     if (player.id === keeper) {
       finalTarget = goalkeeperTarget(state, team);
+    } else if (assignedAttacker && assignedAttacker.isOnCourt) {
+      // Marquage strict persistant : le defenseur colle son adversaire assigne
+      // au lieu de rejoindre son emplacement (rapport 14, phase B).
+      finalTarget = { x: assignedAttacker.position.x + attackingDirection(team) * 1.4, y: assignedAttacker.position.y };
     } else if (options.ballSideShift && holder && shape !== 'attack') {
       const shift = Math.max(-options.ballSideShift, Math.min(options.ballSideShift, holder.position.y - target.y));
       finalTarget = {

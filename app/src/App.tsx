@@ -120,7 +120,7 @@ function App() {
         <footer className="action-dock-idle">
           <div className="idle-msg">
             {matchState?.possession === 'lagny'
-              ? 'Défense de Nangis en place · Lagny attaque...'
+              ? 'Lagny attaque · clique un défenseur pour marquer ou aider'
               : 'En attente de la prochaine situation...'}
           </div>
           <button className="idle-ai-btn" onClick={letAiDecide}>

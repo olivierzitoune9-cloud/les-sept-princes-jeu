@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import './ActionDock.css'
 
-export type TacticalCategory = 'pass' | 'duel' | 'fix' | 'move' | 'shoot'
+export type TacticalCategory = 'pass' | 'duel' | 'fix' | 'move' | 'shoot' | 'defend'
 
 export interface ActionItem {
   id: string
@@ -45,7 +45,8 @@ const CATEGORY_TABS: Array<{ key: TacticalCategory; label: string; icon: string 
   { key: 'duel', label: 'ATTAQUER', icon: '⚔' },
   { key: 'fix', label: 'FIXER', icon: '⚓' },
   { key: 'move', label: 'DÉPLACER', icon: '↺' },
-  { key: 'shoot', label: 'TIRER', icon: '🎯' }
+  { key: 'shoot', label: 'TIRER', icon: '🎯' },
+  { key: 'defend', label: 'DÉFENDRE', icon: '🛡' }
 ]
 
 const ActionDock: React.FC<ActionDockProps> = ({
@@ -64,13 +65,15 @@ const ActionDock: React.FC<ActionDockProps> = ({
       duel: [],
       fix: [],
       move: [],
-      shoot: []
+      shoot: [],
+      defend: []
     }
     actions.forEach((act) => {
       const type = act.intent.type
       if (type === 'pass') groups.pass.push(act)
       else if (type === 'duel') groups.duel.push(act)
       else if (type === 'fix') groups.fix.push(act)
+      else if (type === 'mark' || type === 'help') groups.defend.push(act)
       else if (type === 'run' || type === 'cross') groups.move.push(act)
       else if (type === 'shoot') groups.shoot.push(act)
     })

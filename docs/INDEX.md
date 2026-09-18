@@ -28,6 +28,7 @@ Ces documents fondent les decisions de gameplay :
 - `14-rapport-systeme-match-44-48.md` : synthese de calibration du moteur.
 - `15-recherche-handball-multilingue.md` : regles et principes techniques externes.
 - `16-plan-vertical-slice-et-jeu-complet.md` : parcours de test avant extension du contenu.
+- `17-audit-ecart-doc-code.md` : ecarts mesures entre sources de verite et code, plan de correction.
 
 ## Ordre de lecture avant le code
 
