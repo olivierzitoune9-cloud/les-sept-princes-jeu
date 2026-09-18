@@ -126,7 +126,7 @@ Retour du coach : en phase offensive, l'écran lui demande de choisir la défens
 
 - `tsc --noEmit` : **0 erreur**.
 - `vitest run src/volley.test.ts` : **11/11, exit 0**.
-- Suite complète `engine.test.ts` : **43/47** — 4 échecs **préexistants à cette session** (prouvés par `sum.txt`/`tj.json`/`test-out.txt` de la session précédente : strict assignment, bloc figé sans déplacement, relance gardien/centre, tir en portée) ; aucun fichier source existant modifié par cette session (ajouts purs + exports), donc aucune régression introduite. Ces 4 échecs deviennent l'entrée de la prochaine consolidation moteur.
+- Suite complète `engine.test.ts` : **43/47** — 4 échecs **préexistants à cette session**. PREUVE : `sum.txt`, `tj.json`, `test-out.txt` (session précédente, non touchés par ce commit) citent déjà les mêmes 4 intitulés avec les mêmes valeurs d'échec (2.6 strict assignment, bloc figé sans déplacement, relance `{x:21.5,y:10}` vs CENTRE, tir en portée). `git diff --stat` de ce commit liste exactement : docs 08/09/10/19, `index.ts`, `spatial.ts`, `volley.ts` + `volley.test.ts` nouveaux ; seul `spatial.ts`/`index.ts` touchés en existant, en ajouts purs (import type + nouvelles fonctions/exports). Quiconque rejoue la suite sans les fichiers `volée.*` reproduit les mêmes 4 échecs. Ces 4 échecs deviennent l'entrée de la prochaine consolidation moteur.
 - `app/` non touché : l'ancienne boucle reste branchée et jouable, la volée reste moteur pur en attendant l'éditeur de flèches.
 
 ### 4. Prochaine étape proposée
