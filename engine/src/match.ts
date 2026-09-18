@@ -65,6 +65,7 @@ function createInitialState(seed: number, playerMap: Record<string, PlayerState>
     seed,
     timeSeconds: 0,
     period: 1,
+    possessionPhase: 'installation',
     ball: { holderId: holder.id, position: { ...holder.position } },
     players: playerMap,
     teams: {

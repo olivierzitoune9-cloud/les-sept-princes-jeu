@@ -29,6 +29,7 @@ Ces documents fondent les decisions de gameplay :
 - `15-recherche-handball-multilingue.md` : regles et principes techniques externes.
 - `16-plan-vertical-slice-et-jeu-complet.md` : parcours de test avant extension du contenu.
 - `17-audit-ecart-doc-code.md` : ecarts mesures entre sources de verite et code, plan de correction.
+- `18-diagnostic-experientiel-refonte-boucle.md` : diagnostic issu du test joue, spec de la nouvelle boucle, plan de refonte.
 
 ## Ordre de lecture avant le code
 

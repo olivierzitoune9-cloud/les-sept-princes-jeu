@@ -80,7 +80,9 @@ const TRANSITION: ShapeSlot[] = [
   slot('left-back', ['back'], 22, 6.5, 'opponent-goal'),
   slot('right-back', ['back'], 22, 13.5, 'opponent-goal'),
   slot('centre', ['center'], 24, 10, 'opponent-goal'),
-  slot('pivot', ['pivot'], 20.5, 10, 'opponent-goal')
+  // Le pivot part deja proche de sa zone : il ne doit pas traverser le
+  // terrain pendant l'installation (retour de test doc 18 §1.4).
+  slot('pivot', ['pivot'], 9.5, 10, 'opponent-goal')
 ];
 
 const SHAPES: Record<TeamShape, ShapeSlot[]> = {
@@ -268,4 +270,56 @@ export function pressingDefenderId(state: MatchState, defendingTeam: TeamId): st
   return onCourtPlayers(state, defendingTeam).sort(
     (first, second) => distance(first.position, holder.position) - distance(second.position, holder.position)
   )[0]?.id;
+}
+
+// Installation de l'attaque (doc 18 §3.1) : l'attaque est installee quand tous
+// ses joueurs de champ sont a portee de leur emplacement d'attaque (porteur
+// excepte). Tant que ce n'est pas le cas, la defense reste sur son systeme.
+export function attackInstalled(state: MatchState, team: TeamId, tolerance = 4): boolean {
+  const targets = shapeTargets(state, team, 'attack');
+  const holderId = state.ball.holderId;
+  for (const player of onCourtPlayers(state, team)) {
+    if (player.id === holderId) continue;
+    const target = targets[player.id];
+    if (!target) continue;
+    if (distance(player.position, target) > tolerance) return false;
+  }
+  return true;
+}
+
+// Vis-a-vis de reference (doc 18 §3.2, retour de test §1.6) : chaque attaquant
+// a un defenseur de reference assigne par couloir et affinite de poste, pas par
+// simple proximite. Elio ne doit plus se retrouver face a Aaron cote droit.
+// Score : affinite de poste (fort), meme couloir (fort), puis proximite.
+const ROLE_AFFINITY: Record<PlayerRole, PlayerRole[]> = {
+  goalkeeper: [],
+  wing: ['wing'],
+  back: ['back'],
+  center: ['center', 'back'],
+  pivot: ['pivot', 'back']
+};
+
+function couloir(y: number): 'left' | 'centre' | 'right' {
+  if (y < 6.5) return 'left';
+  if (y > 13.5) return 'right';
+  return 'centre';
+}
+
+export function referenceDefenderId(state: MatchState, attackerId: string): string | undefined {
+  const attacker = state.players[attackerId];
+  if (!attacker) return undefined;
+  const attackingCouloir = couloir(attacker.position.y);
+  const affinity = ROLE_AFFINITY[attacker.role];
+  const candidates = onCourtPlayers(state, attacker.team === 'nangis' ? 'lagny' : 'nangis');
+  let best: { id: string; score: number } | undefined;
+  for (const defender of candidates) {
+    const roleAffinity = affinity.includes(defender.role) ? 1 : 0;
+    const couloirAffinity = couloir(defender.position.y) === attackingCouloir ? 1 : 0;
+    const proximity = -distance(defender.position, attacker.position) * 0.15;
+    const score = roleAffinity * 4 + couloirAffinity * 3 + proximity;
+    if (!best || score > best.score) {
+      best = { id: defender.id, score };
+    }
+  }
+  return best?.id;
 }

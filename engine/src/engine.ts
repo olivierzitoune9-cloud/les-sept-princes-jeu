@@ -4,6 +4,7 @@ import { shotContext, attackingDirection } from './court.js';
 import { observeIntervals, passLaneContest } from './spatial.js';
 import { defensivePressure } from './defense.js';
 import { goalkeeperAdvantage, mentalSwing } from './goalkeeper.js';
+import { referenceDefenderId } from './formation.js';
 import type { ActionIntent, ActionResolution, MatchEvent, MatchState, Situation, TeamId, Vector2 } from './types.js';
 
 // Portee de tir credible, en metres effectifs (distance + angle). Au dela,
@@ -149,31 +150,64 @@ export function getSituation(state: MatchState): Situation {
     .filter((player) => player.team === holder.team && player.id !== holder.id && player.isOnCourt && player.role !== 'goalkeeper')
     .sort((first, second) => distance(first.position, holder.position) - distance(second.position, holder.position));
   const availableActions: ActionIntent[] = teammates.slice(0, 4).map((player) => ({ type: 'pass', actorId: holder.id, targetId: player.id }));
-  if (closestOpponent) {
-    availableActions.push({ type: 'duel', actorId: holder.id, targetId: closestOpponent.id });
+  // Gates geometriques (doc 18 §3.2, retour de test §1.3/§1.15) : un duel, un
+  // dribble ou une fixation n'a de sens qu'au contact du vis-a-vis de
+  // reference — pas a 20 m du defenseur le plus proche par hasard.
+  const referenceDefender = (() => {
+    const referenceId = referenceDefenderId(state, holder.id);
+    return referenceId ? state.players[referenceId] : closestOpponent;
+  })();
+  const referenceDistance = referenceDefender ? distance(holder.position, referenceDefender.position) : Infinity;
+  const intervals = observeIntervals(state, holder.team);
+  const openIntervalAhead = intervals.some((interval) => interval.openness > 0.45);
+  if (referenceDefender && referenceDistance <= 3.5) {
+    availableActions.push({ type: 'duel', actorId: holder.id, targetId: referenceDefender.id });
+  }
+  // Dribble (balle au sol) : une seule prise de dribble, reprise interdite.
+  if (referenceDefender && referenceDistance <= 4 && !holder.dribbling) {
     // Dribble : reprise balle en main pour changer de rythme et de direction
     // (doc 01 §4 : dribble distinct du duel). Moins d'engagement qu'un duel :
     // on garde le ballon meme en echec, mais on ne bat personne.
-    availableActions.push({ type: 'dribble', actorId: holder.id, targetId: closestOpponent.id });
-    availableActions.push({ type: 'fix', actorId: holder.id, targetId: closestOpponent.id });
+    availableActions.push({ type: 'dribble', actorId: holder.id, targetId: referenceDefender.id });
   }
-  const crossTarget = teammates.find((player) => player.role === 'back' || player.role === 'center');
-  if (crossTarget) {
+  // Fixer = attaquer l'intervalle pour provoquer la fermeture et liberer
+  // l'autre espace (doc 18 §1.12) : il faut un intervalle devant soi.
+  if (referenceDefender && referenceDistance <= 4.5 && openIntervalAhead) {
+    availableActions.push({ type: 'fix', actorId: holder.id, targetId: referenceDefender.id });
+  }
+  // Croise : permutation de couloirs, proposee seulement quand le porteur
+  // n'est pas sous contact immediat (doc 18 §1.15).
+  const crossTarget = teammates.find(
+    (player) => (player.role === 'back' || player.role === 'center') && Math.abs(player.position.y - holder.position.y) >= 4
+  );
+  if (crossTarget && referenceDistance >= 3) {
     availableActions.push({ type: 'cross', actorId: holder.id, targetId: crossTarget.id });
   }
   // Deplacements du porteur (doc 01 §4) : avancer, diagonale interieure,
   // decalage exterieur. La course construit l elan du tir en appui.
   const attackSign = holder.team === 'nangis' ? 1 : -1;
   const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value));
+  // Regle du marcher (O-008, doc 18 §3.3) : balle en main, 3 pas sans dribble.
+  // Une course de porteur consomme son budget de pas ; au-dela, il faut mettre
+  // la balle au sol (dribble) avant de courir a nouveau.
+  const stepsUsed = holder.stepsWithoutDribble ?? 0;
+  const advanceCost = 3;
+  const lateralCost = 2;
+  const canAdvance = holder.dribbling === true || stepsUsed + advanceCost <= 3;
+  const canLateral = holder.dribbling === true || stepsUsed + lateralCost <= 3;
   const advanceTarget = { x: clamp(holder.position.x + attackSign * 3, 1, 39), y: holder.position.y };
   const insideTarget = {
     x: clamp(holder.position.x + attackSign * 2, 1, 39),
     y: clamp(holder.position.y + (holder.position.y <= 10 ? 2.5 : -2.5), 1, 19)
   };
   const outsideTarget = { x: holder.position.x, y: clamp(holder.position.y + (holder.position.y <= 10 ? -3 : 3), 1, 19) };
-  availableActions.push({ type: 'run', actorId: holder.id, targetPosition: advanceTarget, runKind: 'advance' });
-  availableActions.push({ type: 'run', actorId: holder.id, targetPosition: insideTarget, runKind: 'diagonal' });
-  availableActions.push({ type: 'run', actorId: holder.id, targetPosition: outsideTarget, runKind: 'lateral' });
+  if (canAdvance) {
+    availableActions.push({ type: 'run', actorId: holder.id, targetPosition: advanceTarget, runKind: 'advance' });
+    availableActions.push({ type: 'run', actorId: holder.id, targetPosition: insideTarget, runKind: 'diagonal' });
+  }
+  if (canLateral) {
+    availableActions.push({ type: 'run', actorId: holder.id, targetPosition: outsideTarget, runKind: 'lateral' });
+  }
   // Le tir n est propose que depuis une distance credible, mesuree en distance
   // effective (axiale + angle). Un ailier excentre a 8 m axiaux peut etre hors
   // portee quand un arriere plein axe a 12 m reste dedans (docs 01, 03, 14).
@@ -194,7 +228,6 @@ export function getSituation(state: MatchState): Situation {
       availableActions.push({ type: 'shoot', actorId: holder.id, shotType: 'placed' });
     }
   }
-  const intervals = observeIntervals(state, holder.team);
   return {
     state,
     availableActions,
@@ -422,8 +455,12 @@ export function resolveAction(state: MatchState, action: ActionIntent, random = 
     };
     const isCarrier = actor.id === nextState.ball.holderId;
     if (isCarrier) {
-      // Le porteur avance avec le ballon : la course construit l elan qui
-      // alimente le tir en appui (doc 17, ecart E-002).
+      // Regle du marcher (O-008, doc 18 §3.3) : balle en main, 3 pas sans
+      // dribble. Chaque course de porteur consomme des pas ; si le budget est
+      // depasse, la balle est a mettre au sol (dribble) avant de courir a
+      // nouveau.
+      const runCost = Math.abs(action.targetPosition.y - actor.position.y) < 0.5 ? 3 : 2;
+      actor.stepsWithoutDribble = (actor.stepsWithoutDribble ?? 0) + runCost;
       nextState.ball.position = { ...actor.position };
       actor.momentum = Math.min(100, (actor.momentum ?? 0) + 45);
     }

@@ -1,7 +1,7 @@
 import { SeededRandom } from './random.js';
 import { resolveAction, contestAction } from './engine.js';
-import { CENTRE } from './court.js';
-import { driftTeam, placeTeam, pressingDefenderId } from './formation.js';
+import { CENTRE, attackingDirection } from './court.js';
+import { attackInstalled, driftTeam, placeTeam, pressingDefenderId } from './formation.js';
 import type { ActionIntent, MatchEvent, MatchState, TeamId } from './types.js';
 
 // Boucle d une action jouee : resolution, puis replacement des deux equipes.
@@ -50,7 +50,9 @@ export function installPossession(state: MatchState, attackingTeam: TeamId, rest
     );
     const taker = attackers.find((player) => player.role === 'center') ?? attackers[0];
     if (taker) {
-      taker.position = { ...CENTRE };
+      // L'engageur se place derriere la ligne mediane, sur son propre cote :
+      // jamais pile sur le point central (retour de test doc 18 §1.2).
+      taker.position = { x: CENTRE.x - attackingDirection(attackingTeam) * 1.5, y: CENTRE.y };
       holderId = taker.id;
     }
   }
@@ -65,7 +67,14 @@ export function installPossession(state: MatchState, attackingTeam: TeamId, rest
   if (holder) {
     nextState.ball.position = { ...holder.position };
     holder.momentum = 0;
+    // Nouvelle possession : ballon en main, pas au sol. La regle du marcher
+    // repart de zero (O-008, doc 18 §3.3).
+    holder.dribbling = false;
+    holder.stepsWithoutDribble = 0;
   }
+  // La possession debute en installation : l'attaque se place, la defense
+  // tient son systeme (doc 18 §3.1).
+  nextState.possessionPhase = 'installation';
   return nextState;
 }
 
@@ -93,14 +102,30 @@ export function stepShapes(state: MatchState): ShapeStep {
   const attackingTeam = holder.team;
   const defendingTeam = opposingTeam(attackingTeam);
   const system = nextState.teams[defendingTeam].system;
-  const presser = pressingDefenderId(nextState, defendingTeam);
-  const defendingMoved = driftTeam(nextState, defendingTeam, system, { maxStep: 3, press: true, ballSideShift: 2.5 });
-  const attackingMoved = driftTeam(nextState, attackingTeam, 'attack', { maxStep: 2.2, keepIds: [holder.id] });
 
-  if (presser) {
-    const defender = nextState.players[presser];
-    if (defender && distance(defender.position, holder.position) <= 3) {
-      holder.pressure = Math.min(100, holder.pressure + 7);
+  // Machine a etats de possession (doc 18 §3.1) : tant que l'attaque n'est pas
+  // installee, la defense reste sur son systeme, immobile — ni pressing, ni
+  // coulissement. Une defense 6-0 ne bouge pas parce que l'attaque approche.
+  const installed = attackInstalled(nextState, attackingTeam);
+  let defendingMoved = 0;
+  let attackingMoved = 0;
+  let presser: string | undefined;
+
+  if (!installed) {
+    attackingMoved = driftTeam(nextState, attackingTeam, 'attack', { maxStep: 3.2, keepIds: [holder.id] });
+  } else {
+    if (nextState.possessionPhase === 'installation') {
+      nextState.possessionPhase = 'live';
+    }
+    presser = pressingDefenderId(nextState, defendingTeam);
+    defendingMoved = driftTeam(nextState, defendingTeam, system, { maxStep: 3, press: true, ballSideShift: 2.5 });
+    attackingMoved = driftTeam(nextState, attackingTeam, 'attack', { maxStep: 2.2, keepIds: [holder.id] });
+
+    if (presser) {
+      const defender = nextState.players[presser];
+      if (defender && distance(defender.position, holder.position) <= 3) {
+        holder.pressure = Math.min(100, holder.pressure + 7);
+      }
     }
   }
 
@@ -109,12 +134,16 @@ export function stepShapes(state: MatchState): ShapeStep {
     type: 'defensive-shift',
     ...(presser ? { actorId: presser } : {}),
     targetId: holder.id,
-    result: defendingMoved > 0.4 ? 'applied' : 'held',
-    causes: [
-      presser ? 'carrier pressed' : 'no defender in range',
-      `shape ${system}`,
-      defendingMoved > 0.4 ? 'block shifted' : 'block already set'
-    ]
+    result: !installed
+      ? 'held'
+      : defendingMoved > 0.4 ? 'applied' : 'held',
+    causes: !installed
+      ? ['attack not installed yet', `defense holds ${system}`]
+      : [
+          presser ? 'carrier pressed' : 'no defender in range',
+          `shape ${system}`,
+          defendingMoved > 0.4 ? 'block shifted' : 'block already set'
+        ]
   });
   return {
     state: nextState,

@@ -47,3 +47,32 @@ Ce registre liste les questions qui peuvent etre tranchees pendant l implementat
 ## Regle
 
 Toute decision fermee doit etre ajoutee a `09-historique-decisions.md` avant d etre encodee comme invariant.
+
+## O-007 - Vis-a-vis par poste
+
+- Statut : a trancher en P0 (doc 18)
+- Question : comment assigner le defenseur de reference de chaque attaquant (poste, couloir, proximite) et gerer les permutations (croise, rotation) ?
+- Contrainte : Elio ne doit plus jamais se retrouver face a Aaron cote droit par defaut ; un croise permute les vis-a-vis sans teleportation.
+- Test : la premiere frame et le premier affichage des duels correspondent au nomogramme attendu par un pratiquant.
+
+## O-008 - Regles de tenue de balle
+
+- Statut : a trancher en P0 (doc 18)
+- Question : quel sous-ensemble des regles du marcher coder au prototype (3 pas, 3 secondes, reprise de dribble) et avec quelle tolerance ?
+- Contrainte : le porteur ne peut plus avancer a l'infini ; la perte de balle est explicable par sa cause.
+- Test : avancer sans dribble au-dela de 3 pas perd la balle avec la cause affichee.
+
+## O-009 - Pacing des fenetres defensives
+
+- Statut : a trancher en P1 (doc 18)
+- Question : quel ralentissement du temps de simulation dans les moments decisifs, et quels declencheurs exacts ?
+- Contrainte : plus de fenetre de 0,5 s inexploitable ; jamais deux fenetres concurrentes.
+- Test : le coach a le temps de lire la situation et de choisir avant que la resolution ne se joue.
+
+## O-010 - Moteur de rendu final
+
+- Statut : reportee apres la preuve de boucle (doc 18 §4)
+- Question : rester sur React-canvas ou migrer vers Godot pour la couche feel ?
+- Contrainte : le moteur de simulation reste portable ; la decision ne bloque pas la refonte.
+- Test : la preuve de boucle joue dans le stack actuel ; la migration n'est envisagee que si le feel y est insuffisant.
+

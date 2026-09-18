@@ -20,6 +20,11 @@ export interface PlayerState {
   position: Vector2;
   energy: number;
   momentum?: number;
+  // Balle au sol (dribble en cours) : le porteur peut courir sans limite de pas.
+  // Sinon la regle du marcher s'applique (O-008, doc 15).
+  dribbling?: boolean;
+  // Pas effectues balle en main sans dribble depuis le dernier gain de balle.
+  stepsWithoutDribble?: number;
   // Duel gagne : le defenseur est battu jusqu'a ce temps (secondes match).
   // Tant que timeSeconds < beatenUntil, il ne presse plus et coulisse ralenti.
   // C'est ce qui rend l'espace conquis visible et decisif (doc 01 §4, doc 12).
@@ -82,6 +87,9 @@ export interface MatchState {
   seed: number;
   timeSeconds: number;
   period: 1 | 2;
+  // Phase de la possession courante (doc 18 §3.1) : pendant l'installation,
+  // l'attaque se place et la defense reste sur son systeme, immobile.
+  possessionPhase: 'installation' | 'live';
   ball: BallState;
   players: Record<string, PlayerState>;
   teams: Record<TeamId, TeamState>;
