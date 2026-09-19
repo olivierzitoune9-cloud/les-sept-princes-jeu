@@ -2,7 +2,8 @@
    panneaux verre sombre, accents or pour la decision, bleu Nangis / orange
    Lagny. Aucune image, aucune representation d'etre anime. */
 .v2-app {
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   background:
@@ -11,6 +12,37 @@
     #05090f;
   color: #e8eef7;
 }
+
+/* Ecran titre (D-022) */
+.v2-title { align-items: center; justify-content: center; }
+.v2-title-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  max-width: 520px;
+  text-align: center;
+  padding: 40px 32px;
+  background: rgba(13, 21, 34, 0.75);
+  border: 1px solid rgba(140, 170, 210, 0.22);
+  border-top: 2px solid #d9a62e;
+  border-radius: 18px;
+}
+.v2-title-crests { display: flex; align-items: center; gap: 18px; }
+.v2-title-crests .v2-crest { width: 46px; height: 52px; }
+.v2-title-vs { color: #7488a3; font-size: 22px; }
+.v2-title h1 { margin: 0; font-size: 30px; letter-spacing: 0.22em; font-weight: 800; }
+.v2-title-sub { margin: 0; color: #d9a62e; font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase; }
+.v2-title-desc { margin: 0; color: #b8c8de; font-size: 14px; line-height: 1.55; }
+.v2-enter { width: auto; padding: 12px 34px; font-size: 14px; }
+.v2-title-tag { font-size: 10px; letter-spacing: 0.3em; color: rgba(140, 170, 210, 0.45); }
+
+/* Rapport de fin de match : chronologie sobre des evenements majeurs. */
+.v2-timeline { list-style: none; margin: 8px 0 10px; padding: 0; font-size: 12px; }
+.v2-timeline li { display: flex; gap: 8px; padding: 3px 0; border-bottom: 1px solid rgba(140,170,210,0.1); }
+.v2-timeline-time { color: #d9a62e; font-weight: 700; min-width: 40px; font-variant-numeric: tabular-nums; }
+.v2-timeline-type { color: #8fa6c4; text-transform: uppercase; font-size: 10.5px; letter-spacing: 0.06em; min-width: 78px; }
+.v2-timeline-result { color: #cdd9ea; }
 
 /* HUD superieur */
 .v2-hud {

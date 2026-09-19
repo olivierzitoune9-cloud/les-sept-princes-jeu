@@ -78,6 +78,16 @@ const FIX_CONTACT = 2.5;
 const SHOT_RANGE = 11;
 const DEFENSE_ENERGY_COST_PER_METRE = 0.5;
 const ATTACK_ENERGY_COST_PER_METRE = 0.2;
+// D-023 : la ligne de defense se tient a 6 m (retour joueur 19/09). Un 6-0
+// coulisse lateralement et ne sort que quand le porteur penetre vraiment la
+// zone d'engagement. Jamais de meute : un seul defenseur sort.
+const DEFENSE_LINE_DISTANCE = 6;
+const PRESS_ENGAGE_DISTANCE = 10;
+const HOLD_LATERAL_SLIDE = 1.5;
+// Un coureur qui ne progresse plus (contact, mur humain) arrete sa course
+// au lieu de pousser dans le bloc pendant 5 secondes.
+const STALL_TICKS = 4;
+const STALL_MIN_PROGRESS = 0.03;
 
 const DEFAULT_MAX_DISPLACEMENT: Record<DefenseVolleyIntent, number> = {
   shift: 3,
@@ -192,6 +202,9 @@ export interface VolleyResult {
 interface RunOrder {
   order: VolleyOrder;
   done: boolean;
+  // Compteur de ticks sans progression reelle (D-023) : un coureur bloque
+  // au contact arrete sa course au lieu de pousser dans le mur.
+  stall?: number;
 }
 
 interface Flight {
@@ -400,9 +413,27 @@ export function resolveVolley(
       // move, attackSpace, cut, screen, support, stretch : course vers la cible.
       const target = order.targetPosition!;
       const before = { ...actor.position };
-      actor.position = stepToward(actor.position, target, locomotionSpeed(actor) * TICK * ramp(elapsed));
-      track(moved, actor.id, dist(before, actor.position));
+      const next = stepToward(actor.position, target, locomotionSpeed(actor) * TICK * ramp(elapsed));
+      // Contact (D-023) : hors attaque d'espace (qui CHERCHE le duel), une
+      // course qui aboutit dans un defenseur s'arrete contre lui. Le bloc est
+      // un mur : on ne le traverse pas, on ne le pousse pas pendant 5 s.
+      const blocker = order.kind === 'attackSpace'
+        ? undefined
+        : nearestDefenderOf(working, defendingTeam, next, 0.8);
+      if (blocker) {
+        run.stall = (run.stall ?? 0) + 1;
+        if (run.stall >= STALL_TICKS) run.done = true;
+        continue;
+      }
+      actor.position = next;
+      const progress = dist(before, actor.position);
+      track(moved, actor.id, progress);
       if (working.ball.holderId === actor.id) working.ball.position = { ...actor.position };
+      run.stall = progress < STALL_MIN_PROGRESS ? (run.stall ?? 0) + 1 : 0;
+      if ((run.stall ?? 0) >= STALL_TICKS) {
+        run.done = true;
+        continue;
+      }
       if (order.kind === 'attackSpace') {
         // Le duel nait de la geometrie : contact + trajectoire vers un espace.
         const defender = nearestDefenderOf(working, defendingTeam, actor.position, DUEL_CONTACT);
@@ -472,14 +503,21 @@ export function resolveVolley(
       if ((defender.beatenUntil ?? 0) > state.timeSeconds + elapsed) continue;
       const order = defenseByActor.get(defender.id);
       const kind: DefenseVolleyIntent = order?.kind ?? 'hold';
-      if (kind === 'hold') continue;
       const cap = order?.maxDisplacement ?? DEFAULT_MAX_DISPLACEMENT[kind];
+      if (cap <= 1e-9) continue;
       const used = defenseMoved.get(defender.id) ?? 0;
       if (used >= cap - 1e-9) continue;
       const holder = working.players[working.ball.holderId];
       if (!holder) continue;
       let target: Vector2 | null = null;
-      if (kind === 'shift' || kind === 'pressBall') {
+      if (kind === 'hold') {
+        // D-023 : tenir la ligne n'est pas etre fige. Le defenseur coulisse
+        // lateralement pour rester en face du ballon, ancre sur son poste,
+        // sans jamais quitter sa hauteur de ligne.
+        const home = initialDefenderPositions.get(defender.id) ?? defender.position;
+        const slide = Math.max(-HOLD_LATERAL_SLIDE, Math.min(HOLD_LATERAL_SLIDE, holder.position.y - home.y));
+        target = { x: home.x, y: home.y + slide };
+      } else if (kind === 'shift' || kind === 'pressBall') {
         target = holder.position;
       } else if (kind === 'help') {
         const goalX = defender.team === 'nangis' ? 0 : 40;
@@ -541,11 +579,22 @@ export function resolveVolley(
       break;
     }
 
+    // Fin de volee naturelle (D-023) : tous les ordres sont accomplis, le
+    // ballon n'est plus en vol. La volee se termine au temps reel ecoule,
+    // jamais apres 5 s de derive sans intention. La condition reste interdite
+    // tant qu'un conditionnel peut encore partir (c'est le sens du plan).
+    if (!flightRef.current && (conditionalUsed || !attack.conditional) && runs.every((run) => run.done)) {
+      endReason = 'duration';
+      break;
+    }
+
     elapsed += TICK;
   }
-  if (endReason === 'duration') {
+  if (endReason === 'duration' && !endedEarly && elapsed >= MAX_VOLLEY_SECONDS) {
+    // Epuisement reel des 5 s : la volee a ete jouee jusqu'au bout.
     elapsed = MAX_VOLLEY_SECONDS;
   }
+  // Fin naturelle (tous les ordres accomplis) : elapsed garde le temps reel.
 
   // Couts locomoteurs : l'ardeur de la defense coute plus cher que la course
   // offensive (spec 19 §6 ; fenetre glissante Ardeur en V1).
@@ -584,32 +633,31 @@ export function resolveVolley(
   };
 }
 
-// Doctrine defensive par defaut pour le sandbox : pression porteur proche,
-// containment du vis-a-vis, coulissement leger sinon. L'IA planifie, elle ne
-// reagit pas au plan offensif (spec 19 §7).
+// Doctrine defensive par defaut (D-023) : la ligne se tient a 6 m. Seul le
+// defenseur le plus proche sort presser le porteur, et seulement quand celui-ci
+// est engage a moins de 10 m du but. Tous les autres tiennent leur ligne avec
+// un coulissement lateral mesure. L'IA planifie, elle ne reagit pas au plan
+// offensif (spec 19 §7) : jamais de meute, jamais de lecture du plan.
 export function chooseVolleyDefense(state: MatchState, attackingTeam: TeamId): DefensePlan {
   const defendingTeam = other(attackingTeam);
   const holder = state.players[state.ball.holderId];
-  const attackers = Object.values(state.players).filter(
-    (player) => player.team === attackingTeam && player.isOnCourt && player.role !== 'goalkeeper'
+  const defenders = Object.values(state.players).filter(
+    (player) => player.team === defendingTeam && player.isOnCourt && player.role !== 'goalkeeper'
   );
-  const orders: DefenseOrder[] = [];
-  for (const defender of Object.values(state.players)) {
-    if (defender.team !== defendingTeam || !defender.isOnCourt || defender.role === 'goalkeeper') continue;
-    const holderDistance = holder ? dist(defender.position, holder.position) : Infinity;
-    if (holderDistance <= 4) {
-      orders.push({ actorId: defender.id, kind: 'pressBall' });
-      continue;
-    }
-    const assignmentDistance = attackers.length
-      ? Math.min(...attackers.map((attacker) => dist(attacker.position, defender.position)))
-      : Infinity;
-    orders.push(
-      assignmentDistance <= 4
-        ? { actorId: defender.id, kind: 'contain' }
-        : { actorId: defender.id, kind: 'shift', maxDisplacement: 2 }
-    );
-  }
-  return { team: defendingTeam, orders };
+  const holderDistance = holder ? distanceToGoal(holder.position, attackingTeam) : Infinity;
+  const engaged = holder ? holderDistance <= PRESS_ENGAGE_DISTANCE : false;
+  const closestId = engaged
+    ? defenders
+        .map((defender) => ({ id: defender.id, d: dist(defender.position, holder!.position) }))
+        .sort((first, second) => first.d - second.d)[0]?.id ?? null
+    : null;
+  return {
+    team: defendingTeam,
+    orders: defenders.map((defender) =>
+      defender.id === closestId
+        ? { actorId: defender.id, kind: 'pressBall' as const, maxDisplacement: 4 }
+        : { actorId: defender.id, kind: 'hold' as const, maxDisplacement: HOLD_LATERAL_SLIDE }
+    )
+  };
 }
 

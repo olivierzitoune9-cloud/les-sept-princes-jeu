@@ -171,3 +171,20 @@ Ce fichier trace les decisions qui structurent le projet. Une nouvelle decision 
 - Impact : `AppVolley.tsx/.css` (nouveau layout v2), `VolleyPlanner.tsx/.css` (dock de cartes), `fieldRenderer.ts` (bandes de pelouse, halo des jetons), `fieldConstants.ts` (palette v2), `useVolleyEngine.ts` (selectedInfo, threats), `index.css` (variables). Licite : VALIDE (geometrie pure, aucun etre anime, aucune musique, aucun pari). Moteur et boucle de jeu inchanges.
 
 
+
+## D-022 - Experience de match complete et camera mi-terrain
+
+- Date : 2026-09-19
+- Statut : adoptee (demande joueur : « pas jouable, pas le meme style que les mockups, carte blanche pour que ce soit beau, amusant et jouable », piste de la camera mi-terrain proposee par le joueur et adoptee)
+- Decision : l'ecran de match devient une experience complete. (1) Ecran titre sobre « Les Sept Princes — Nangis contre Lagny, le match du roman ». (2) Vrai 7 contre 7 au coup d'envoi : attaque placee a 9 m, ligne 6-0 a 6 m, gardiens dans leur but (installKickoff). (3) Camera mi-terrain animee a la FIFA : cadre la moitie attaquee, glisse sans saut, bouton « vue complete ». (4) Ralenti cinema de 2,4 s sur les fins de volee decisives (tir, but, arret, duel, interception) : ne ralentit que la glisse visuelle, jamais la simulation deja resolue. (5) Layout fixe 100vh sans aucun chevauchement, dock en cartes, rapport de fin de match avec chronologie des evenements majeurs (buts, arrets, interceptions) tires du moteur.
+- Raison : le jeu etait injouable (dock par-dessus le terrain, page qui scrolle, terrain minuscule) et ne ressemblait pas aux mockups. La camera qui cadre l'action double la taille des jetons, rend les noms lisibles et donne la densite premium visee.
+- Impact : `fieldConstants.ts` (CourtViewport, halfCourtViewport, lerpViewport), `fieldRenderer.ts` (viewport dans drawField et courtToCanvas), `Field.tsx/.css` (camera animee, toggle, ralenti), `AppVolley.tsx/.css` (titre, layout fixe, timeline), `useVolleyEngine.ts` (installKickoff, timeline, plan vide). Moteur inchange (rendu seul). Licite : VALIDE (geometrie pure, aucun etre anime, aucune musique, aucun pari, le ralenti n'est qu'un confort visuel).
+
+## D-023 - Ligne de defense a 6 m, arret au contact, fin de volee naturelle
+
+- Date : 2026-09-19
+- Statut : adoptee (retour joueur : « la defense monte de maniere exageree, il tient sa ligne a 6 m ; Erwan continue d'avancer ; c'est catastrophique »)
+- Decision : trois regles de simulation reparees dans la volee. (1) Doctrine defensive par defaut : la ligne se tient a 6 m ; seul le defenseur le plus proche sort presser le porteur, et seulement quand celui-ci penetre a moins de 10 m du but ; tous les autres tiennent leur ligne avec un coulissement lateral borne a 1,5 m ancre sur le poste initial (jamais de meute). (2) Une course qui aboutit dans un defenseur s'arrete au contact (hors attaque d'espace, qui cherche le duel) et un coureur sans progression pendant 4 ticks termine son ordre au lieu de pousser dans le mur. (3) La volee se termine au temps reel ecoule des que tous les ordres sont accomplis et le ballon n'est plus en vol, au lieu de deriver 5 s ; le plan demarre vide (le moteur n'avance plus le porteur sans ordre explicite).
+- Raison : l'essaim defensif et la course infinie detruisaient la ressemblance au handball. Ces proprietes sont des invariants du vrai 6-0.
+- Impact : `engine/src/volley.ts` (constantes DEFENSE_LINE_DISTANCE, PRESS_ENGAGE_DISTANCE, HOLD_LATERAL_SLIDE, STALL_TICKS ; doctrine chooseVolleyDefense ; arret au contact ; fin naturelle), `engine/src/volley.test.ts` (4 nouveaux tests de propriete, 15/15 verts). Aucune regression : les 4 echecs preexistants de la suite engine restent strictement identiques.
+

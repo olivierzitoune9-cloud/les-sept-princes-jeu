@@ -3,7 +3,11 @@ import { drawField, type TacticalTrajectory, type OpenIntervalMarker } from '../
 import {
   CANVAS_WIDTH_METRES,
   CANVAS_HEIGHT_METRES,
-  canvasToCourt
+  FULL_VIEWPORT,
+  halfCourtViewport,
+  lerpViewport,
+  canvasToCourt,
+  type CourtViewport
 } from '../utils/fieldConstants'
 import './Field.css'
 
@@ -36,6 +40,10 @@ interface FieldProps {
   trajectories?: TacticalTrajectory[]
   hoveredActionId?: string | null
   openIntervals?: OpenIntervalMarker[]
+  // Camera (D-022) : suit la moitie attaquee par defaut, vue complete au choix.
+  attackingTeam?: 'nangis' | 'lagny'
+  // Ralenti cinema : les duels et les tirs ralentissent le temps un instant.
+  slowMotion?: boolean
   onPlayerSelect: (playerId: string) => void
   onTrajectorySelect?: (actionId: string) => void
   onCourtClick?: (point: { x: number; y: number }) => void
@@ -50,6 +58,8 @@ const Field: React.FC<FieldProps> = ({
   trajectories = [],
   hoveredActionId = null,
   openIntervals = [],
+  attackingTeam = null,
+  slowMotion = false,
   onPlayerSelect,
   onTrajectorySelect,
   onCourtClick
@@ -57,6 +67,7 @@ const Field: React.FC<FieldProps> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const [pxm, setPxm] = useState(14)
+  const [fullView, setFullView] = useState(false)
   const trajectoriesRef = useRef<TacticalTrajectory[]>(trajectories)
   trajectoriesRef.current = trajectories
   const hoveredActionIdRef = useRef<string | null>(hoveredActionId)
@@ -67,6 +78,9 @@ const Field: React.FC<FieldProps> = ({
     current: { x: 20, y: 10 },
     target: { x: 20, y: 10 }
   })
+  // La camera est un viewport anime : elle glisse vers la cible, jamais
+  // de teleportation (07 §2 : aucun saut de jetons, aucun saut de cadre).
+  const viewportRef = useRef<CourtViewport>(FULL_VIEWPORT)
   const animationFrameRef = useRef<number>()
   const lastFrameTimeRef = useRef<number>(0)
 
@@ -122,13 +136,18 @@ const Field: React.FC<FieldProps> = ({
 
     animatedBallRef.current.target = { ...matchState.ball.position }
   }, [matchState])
-
-  // Animation continue avec interpolation.
+  // Boucle d'animation : interpolation des positions, de la balle et du
+  // viewport de camera, puis rendu. Le ralenti n'affecte QUE le confort
+  // visuel de glisse, jamais la simulation (deja resolue par le moteur).
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')
     if (!ctx) return
+
+    const targetViewport = fullView || !attackingTeam
+      ? FULL_VIEWPORT
+      : halfCourtViewport(attackingTeam)
 
     const animate = (timestamp: number) => {
       if (!lastFrameTimeRef.current) {
@@ -137,7 +156,11 @@ const Field: React.FC<FieldProps> = ({
 
       const deltaTime = (timestamp - lastFrameTimeRef.current) / 1000
       lastFrameTimeRef.current = timestamp
-      const lerpFactor = Math.min(1, deltaTime * 9)
+      // Ralenti cinema : la glisse des jetons et de la camera se fait plus
+      // lente sur les moments decisifs. La simulation est deja terminee.
+      const pace = slowMotion ? 0.35 : 1
+      const lerpFactor = Math.min(1, deltaTime * 9 * pace)
+      const cameraFactor = Math.min(1, deltaTime * 4 * pace)
 
       animatedPositionsRef.current.forEach((animated) => {
         animated.current.x += (animated.target.x - animated.current.x) * lerpFactor
@@ -149,6 +172,8 @@ const Field: React.FC<FieldProps> = ({
       animatedBallRef.current.current.y +=
         (animatedBallRef.current.target.y - animatedBallRef.current.current.y) * lerpFactor
 
+      viewportRef.current = lerpViewport(viewportRef.current, targetViewport, cameraFactor)
+
       const animatedPlayers = matchState?.players.map(player => {
         const animated = animatedPositionsRef.current.get(player.id)
         return {
@@ -157,7 +182,6 @@ const Field: React.FC<FieldProps> = ({
         }
       }) ?? []
 
-      const openIntervalsRef = openIntervals
       drawField(
         ctx,
         animatedPlayers,
@@ -166,7 +190,8 @@ const Field: React.FC<FieldProps> = ({
         pxm,
         trajectoriesRef.current,
         hoveredActionIdRef.current,
-        openIntervalsRef
+        openIntervals,
+        viewportRef.current
       )
 
       animationFrameRef.current = requestAnimationFrame(animate)
@@ -179,7 +204,7 @@ const Field: React.FC<FieldProps> = ({
         cancelAnimationFrame(animationFrameRef.current)
       }
     }
-  }, [matchState, selectedPlayer, pxm, openIntervals])
+  }, [matchState, selectedPlayer, pxm, openIntervals, attackingTeam, slowMotion, fullView])
 
   // Clic : conversion inverse du canvas vers le terrain, en metres.
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -189,7 +214,8 @@ const Field: React.FC<FieldProps> = ({
     const [courtX, courtY] = canvasToCourt(
       e.clientX - rect.left,
       e.clientY - rect.top,
-      pxm
+      pxm,
+      viewportRef.current
     )
 
     const clickedPlayer = matchState.players.find((player) =>
@@ -223,6 +249,13 @@ const Field: React.FC<FieldProps> = ({
         className="field-canvas"
         onClick={handleCanvasClick}
       />
+      <button
+        className={`field-view-toggle ${fullView ? 'active' : ''}`}
+        onClick={() => setFullView((value) => !value)}
+        title={fullView ? 'Revenir a la camera action' : 'Voir tout le terrain'}
+      >
+        {fullView ? 'Camera action' : 'Vue complete'}
+      </button>
     </div>
   )
 }

@@ -198,4 +198,67 @@ describe('vollee planifiee (D-019)', () => {
     };
     expect(() => validateVolleyPlan(state, attack, HOLD_ALL)).toThrow(/holder/i);
   });
+
+  it('tient la ligne a 6 m : la doctrine par defaut ne produit jamais d essaim', () => {
+    // Retour joueur 19/09 : « les joueurs de Lagny montent de maniere
+    // exageree, il tient sa ligne a 6 m ! ». Un 6-0 coulisse lateralement ;
+    // seul le defenseur le plus proche sort, et seulement si le porteur est
+    // vraiment engage (moins de 10 m du but).
+    const state = installSixZero(createPilotMatch(44));
+    state.ball.holderId = 'yanis';
+    state.players.yanis!.position = { x: 24, y: 10 };
+    state.ball.position = { x: 24, y: 10 };
+    const plan = chooseVolleyDefense(state, 'nangis');
+    expect(plan.orders.filter((order) => order.kind === 'pressBall').length).toBe(0);
+    // Porteur engage a 9 m : un seul defenseur sort, les autres tiennent.
+    state.players.yanis!.position = { x: 31, y: 10 };
+    state.ball.position = { x: 31, y: 10 };
+    const engaged = chooseVolleyDefense(state, 'nangis');
+    expect(engaged.orders.filter((order) => order.kind === 'pressBall').length).toBe(1);
+  });
+
+  it('ne laisse pas la ligne fondre vers la balle : les non-engages restent pres de leur poste', () => {
+    const state = installSixZero(createPilotMatch(44));
+    state.players.yanis!.position = { x: 31, y: 10 };
+    state.ball.position = { x: 31, y: 10 };
+    const before = new Map(
+      ['malone', 'mael', 'kael', 'elio', 'neo', 'karim'].map((id) => [id, { ...state.players[id]!.position }])
+    );
+    const attack: VolleyPlan = {
+      team: 'nangis',
+      orders: [{ actorId: 'yanis', kind: 'move', targetPosition: { x: 32, y: 10 } }]
+    };
+    const result = resolveVolley(state, attack, chooseVolleyDefense(state, 'nangis'), new SeededRandom(9));
+    // Aucun defenseur ne derive a plus de 4,5 m de son poste : coulissements
+    // mesures, jamais de meute sur le porteur.
+    for (const [id, start] of before) {
+      const after = result.state.players[id]!.position;
+      expect(Math.hypot(after.x - start.x, after.y - start.y)).toBeLessThanOrEqual(4.5);
+    }
+  });
+
+  it('arrete la course d un attaquant bloque au contact au lieu de pousser dans le mur', () => {
+    const state = installSixZero(createPilotMatch(44));
+    state.players.erwan!.position = { x: 32, y: 10 };
+    const attack: VolleyPlan = {
+      team: 'nangis',
+      orders: [{ actorId: 'erwan', kind: 'move', targetPosition: { x: 38, y: 10 } }]
+    };
+    const result = resolveVolley(state, attack, HOLD_ALL, new SeededRandom(3));
+    expect(result.state.players.erwan!.position.x).toBeLessThan(37);
+    expect(result.endReason).toBe('duration');
+    expect(result.durationSeconds).toBeLessThan(5);
+  });
+
+  it('termine la volee des que tous les ordres sont accomplis, sans drift de fin', () => {
+    const state = installSixZero(createPilotMatch(44));
+    const attack: VolleyPlan = {
+      team: 'nangis',
+      orders: [{ actorId: 'elian', kind: 'move', targetPosition: { x: 24, y: 14 } }]
+    };
+    const result = resolveVolley(state, attack, HOLD_ALL, new SeededRandom(17));
+    expect(result.durationSeconds).toBeLessThan(2.5);
+    expect(result.state.players.elian!.position.x).toBeCloseTo(24, 1);
+  });
 });
+

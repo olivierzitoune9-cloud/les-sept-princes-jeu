@@ -8,7 +8,9 @@ import {
   courtToCanvas,
   teamColor,
   teamLightColor,
-  teamSoftColor
+  teamSoftColor,
+  FULL_VIEWPORT,
+  type CourtViewport
 } from './fieldConstants'
 import {
   COURT_LENGTH,
@@ -67,10 +69,11 @@ export function drawField(
   pxm: number,
   trajectories: TacticalTrajectory[] = [],
   hoveredActionId: string | null = null,
-  openIntervals: OpenIntervalMarker[] = []
+  openIntervals: OpenIntervalMarker[] = [],
+  viewport: CourtViewport = FULL_VIEWPORT
 ) {
   const toCanvas = (p: { x: number; y: number }): [number, number] =>
-    courtToCanvas(p.x, p.y, pxm)
+    courtToCanvas(p.x, p.y, pxm, viewport)
 
   // Fond hors terrain, puis surface du terrain avec texture de pelouse
   // directionnelle discrete (bandes verticales alternees, D-021).

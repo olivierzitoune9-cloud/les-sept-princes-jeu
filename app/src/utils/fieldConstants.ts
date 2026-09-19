@@ -49,13 +49,50 @@ export const COLORS = {
   intervalZoneBorder: 'rgba(52, 211, 153, 0.45)'
 }
 
-// Zone du canvas : le terrain est entoure d une marge qui contient les cages.
-export function courtToCanvas(x: number, y: number, scale: number): [number, number] {
-  return [(x + COURT_MARGIN) * scale, (y + COURT_MARGIN) * scale]
+// Camera mi-terrain (D-022) : a la FIFA, l'ecran cadre la moitie ou le jeu
+// se joue. En attaque on ne voit pas sa surface, en defense on ne voit pas
+// la surface adverse. Nangis attaque vers x = 40, Lagny vers x = 0.
+// Rendu seul : le moteur garde le terrain 40 x 20 complet.
+export interface CourtViewport {
+  minX: number
+  maxX: number
+  minY: number
+  maxY: number
 }
 
-export function canvasToCourt(x: number, y: number, scale: number): [number, number] {
-  return [x / scale - COURT_MARGIN, y / scale - COURT_MARGIN]
+export const FULL_VIEWPORT: CourtViewport = {
+  minX: -COURT_MARGIN,
+  maxX: COURT_LENGTH + COURT_MARGIN,
+  minY: -COURT_MARGIN,
+  maxY: COURT_WIDTH + COURT_MARGIN
+}
+
+export function halfCourtViewport(attackingTeam: 'nangis' | 'lagny'): CourtViewport {
+  const yMargin = 1.6
+  if (attackingTeam === 'nangis') {
+    return { minX: 12, maxX: COURT_LENGTH + GOAL_DEPTH + 1.4, minY: -yMargin, maxY: COURT_WIDTH + yMargin }
+  }
+  return { minX: -GOAL_DEPTH - 1.4, maxX: 28, minY: -yMargin, maxY: COURT_WIDTH + yMargin }
+}
+
+export function lerpViewport(from: CourtViewport, to: CourtViewport, t: number): CourtViewport {
+  return {
+    minX: from.minX + (to.minX - from.minX) * t,
+    maxX: from.maxX + (to.maxX - from.maxX) * t,
+    minY: from.minY + (to.minY - from.minY) * t,
+    maxY: from.maxY + (to.maxY - from.maxY) * t
+  }
+}
+
+// Zone du canvas : le terrain est entoure d une marge qui contient les cages.
+export function courtToCanvas(x: number, y: number, scale: number, viewport?: CourtViewport): [number, number] {
+  const origin = viewport ?? FULL_VIEWPORT
+  return [(x - origin.minX) * scale, (y - origin.minY) * scale]
+}
+
+export function canvasToCourt(x: number, y: number, scale: number, viewport?: CourtViewport): [number, number] {
+  const origin = viewport ?? FULL_VIEWPORT
+  return [x / scale + origin.minX, y / scale + origin.minY]
 }
 
 export function teamColor(team: 'nangis' | 'lagny'): string {

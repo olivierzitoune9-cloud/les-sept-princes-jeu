@@ -15,7 +15,7 @@ import {
   type VolleyPlan
 } from '@engine/volley.js'
 import type { GapObservation } from '@engine/spatial.js'
-import type { MatchState, PlayerRole, TeamId } from '@engine/types.js'
+import type { MatchState, MatchEvent, PlayerRole, TeamId } from '@engine/types.js'
 import type { TacticalTrajectory, OpenIntervalMarker } from '../utils/fieldRenderer'
 
 // Boucle vollee V0 sandbox (D-019, spec 19) : le temps de match n'avance que
@@ -49,6 +49,55 @@ export function defaultHalfSeconds(minutesPerHalf: number = DEFAULT_MATCH_MINUTE
 
 export function createVolleyMatch(seed = 44): MatchState {
   return createPilotMatch(seed)
+}
+
+// Placement au coup d'envoi (D-022) : une vraie attaque placee a 9 m face a
+// une vraie ligne 6-0 a 6 m, gardiens dans leur but. Le handball commence
+// par cette image, pas par une transition.
+const KICKOFF_ATTACK: Record<string, { x: number; y: number }> = {
+  yanis: { x: 29, y: 10 },   // demi-centre, legerement en retrait
+  erwan: { x: 28.5, y: 5.5 },
+  aaron: { x: 28.5, y: 14.5 },
+  pierre: { x: 32, y: 1.8 },
+  elian: { x: 32, y: 18.2 },
+  edgar: { x: 33.5, y: 10 },
+  liam: { x: 1.2, y: 10 }
+}
+const KICKOFF_DEFENSE: Record<string, { x: number; y: number }> = {
+  malone: { x: 34, y: 3 },
+  mael: { x: 34, y: 6.4 },
+  kael: { x: 34, y: 10 },
+  elio: { x: 34, y: 13.6 },
+  neo: { x: 34, y: 17 },
+  karim: { x: 35.6, y: 10 },
+  teddy: { x: 38.8, y: 10 }
+}
+
+function mirrorSpots(spots: Record<string, { x: number; y: number }>): Record<string, { x: number; y: number }> {
+  // Miroir attaque/defense : la meme formation pour l'autre cote du terrain.
+  const mirrored: Record<string, { x: number; y: number }> = {}
+  for (const [id, spot] of Object.entries(spots)) {
+    mirrored[id] = { x: 40 - spot.x, y: spot.y }
+  }
+  return mirrored
+}
+
+export function installKickoff(state: MatchState, attackingTeam: TeamId): MatchState {
+  const next = structuredClone(state)
+  const attackSpots = attackingTeam === 'nangis' ? KICKOFF_ATTACK : mirrorSpots(KICKOFF_ATTACK)
+  const defenseSpots = attackingTeam === 'nangis' ? KICKOFF_DEFENSE : mirrorSpots(KICKOFF_DEFENSE)
+  const defendingTeam: TeamId = attackingTeam === 'nangis' ? 'lagny' : 'nangis'
+  for (const player of Object.values(next.players)) {
+    if (!player.isOnCourt) continue
+    const spot = (player.team === attackingTeam ? attackSpots : defenseSpots)[player.id]
+    if (spot) player.position = { ...spot }
+  }
+  const holder = next.players[next.ball.holderId]
+  if (holder) next.ball.position = { ...holder.position }
+  next.possessionPhase = 'live'
+  next.teams[attackingTeam].possession = true
+  next.teams[defendingTeam].possession = false
+  return next
 }
 
 let draftCounter = 0
@@ -265,20 +314,25 @@ export function useVolleyMatch(seed = 44, minutesPerHalf: number = DEFAULT_MATCH
   const [lastVolley, setLastVolley] = useState<PlannedVolley | null>(null)
   const [volleyCount, setVolleyCount] = useState(0)
   const [pendingKind, setPendingKind] = useState<AttackVolleyIntent | null>(null)
+  // Chronologie du match (D-022) : le rapport de fin liste les evenements
+  // majeurs (buts, arrets, interceptions) avec leur temps, depuis le moteur.
+  const [timeline, setTimeline] = useState<MatchEvent[]>([])
   const seedRef = useRef(seed)
   const matchSeconds = defaultHalfSeconds(minutesPerHalf) * 2
 
   const start = useCallback(() => {
-    const initial = createVolleyMatch(seedRef.current)
+    // Coup d'envoi en vraie attaque placee (D-022) : 7 contre 7, gardiens
+    // dans leur but, plan vide — c'est le coach qui decide, pas le moteur.
+    const initial = installKickoff(createVolleyMatch(seedRef.current), 'nangis')
     setEngineState(initial)
     setMatch(toUIMatch(initial))
-    const team = initial.teams.nangis.possession ? 'nangis' : 'lagny'
     draftCounter = 0
-    setDraft(suggestOpeningDraft(initial, team))
+    setDraft([])
     setSelectedId(initial.ball.holderId)
     setLastVolley(null)
     setVolleyCount(0)
     setPendingKind(null)
+    setTimeline([])
   }, [])
 
   useEffect(() => { start() }, [start])
@@ -536,9 +590,13 @@ export function useVolleyMatch(seed = 44, minutesPerHalf: number = DEFAULT_MATCH
     setMatch(toUIMatch(next))
     setLastVolley({ ...planned, defense })
     setVolleyCount((count) => count + 1)
-    const nextTeam: TeamId = next.teams.nangis.possession ? 'nangis' : 'lagny'
+    // Chronologie : les evenements majeurs de la volee alimentent le rapport.
+    const MAJOR = new Set(['goal', 'save', 'interception', 'shot', 'turnover'])
+    setTimeline((prev) => [...prev, ...next.events.filter((event) => MAJOR.has(event.type))].slice(-60))
     draftCounter = 0
-    setDraft(suggestOpeningDraft(next, nextTeam))
+    // D-023 : plan vide apres chaque volee — le coach decide, le moteur
+    // n'avance jamais le porteur sans ordre explicite.
+    setDraft([])
     setSelectedId(next.ball.holderId)
     setPendingKind(null)
   }, [engineState, draft])
@@ -547,7 +605,7 @@ export function useVolleyMatch(seed = 44, minutesPerHalf: number = DEFAULT_MATCH
 
   return {
     engineState, match, draft, trajectories, gapMarkers, gaps,
-    selectedInfo, threats,
+    selectedInfo, threats, timeline,
     budget, validation, lastVolley, volleyCount, pendingKind, setPendingKind,
     holderId, attackingTeam, selectedId, setSelectedId,
     addOrder, clickPlayer, clickCourt, setTargetForLast, aimLastAtPoint,

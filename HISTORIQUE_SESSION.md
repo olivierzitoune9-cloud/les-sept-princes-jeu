@@ -178,3 +178,15 @@ Session dédiée éditeur de flèches `app/` : tracé des intentions sur canvas,
 
 ### 4. Reste
 - Jouer un match complet dans le nouveau skin ; V1 volee (pivot, ecrans, croises) ; consolidation des 4 echecs moteur preexistants.
+
+
+## Session 8 - 19 septembre 2026 : D-022 + D-023, jeu jouable et beau
+
+### 1. Moteur repare (D-023)
+- Ligne de defense a 6 m, un seul sort, coulissement lateral borne. Arret au contact des courses. Fin de volee naturelle au temps reel. Plan vide par defaut (le coach decide). 4 nouveaux tests de propriete, 15/15 volley verts, 0 regression (les 4 echecs preexistants restent identiques).
+
+### 2. Experience complete (D-022)
+- Ecran titre sobre. Vrai 7c7 au coup d'envoi (attaque 9 m, ligne 6-0 a 6 m, gardiens). Camera mi-terrain animee a la FIFA + toggle vue complete. Ralenti cinema sur fins decisives. Layout fixe 100vh sans chevauchement. Rapport de fin de match avec chronologie des evenements majeurs.
+
+### 3. Validation
+- tsc app 0 erreur ; vite build OK ; vitest volley 15/15 ; suite engine : 4 echecs strictement preexistants. Licite : VALIDE (geometrie pure, aucun etre anime, aucune musique, aucun pari).

@@ -13,3 +13,21 @@
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
   cursor: pointer;
 }
+
+/* Bascule de camera (D-022) : vue complete ou camera action. */
+.field-view-toggle {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  background: rgba(10, 18, 30, 0.85);
+  border: 1px solid rgba(140, 170, 210, 0.35);
+  color: #b8c8de;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  z-index: 2;
+}
+.field-view-toggle:hover { border-color: #d9a62e; color: #f0d488; }
+.field-view-toggle.active { border-color: #d9a62e; color: #f0d488; }

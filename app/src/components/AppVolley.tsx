@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import Field from './Field'
 import VolleyPlanner from './VolleyPlanner'
 import { useVolleyMatch } from '../hooks/useVolleyEngine'
@@ -46,6 +47,45 @@ function AppVolley() {
   const possNangis = volley.match ? volley.match.possession === 'nangis' : true
   const sel = volley.selectedInfo
   const topThreat = volley.threats[0] ?? null
+  // Ecran titre (D-022) : on entre dans le match par un vrai porche, sobre.
+  const [entered, setEntered] = useState(false)
+  // Ralenti cinema : la derniere volee decisive (tir, but, arret, duel)
+  // ralentit la glisse visuelle le temps de la lire. Jamais la simulation.
+  const [slowUntil, setSlowUntil] = useState(0)
+  const [seenVolley, setSeenVolley] = useState(0)
+  const DECISIVE = new Set(['shot', 'goal', 'save', 'duel', 'interception'])
+  if (volley.volleyCount !== seenVolley) {
+    setSeenVolley(volley.volleyCount)
+    if (volley.lastVolley && DECISIVE.has(volley.lastVolley.endReason)) {
+      setSlowUntil(Date.now() + 2400)
+    }
+  }
+  const slowMotion = Date.now() < slowUntil
+
+  if (!entered) {
+    return (
+      <div className="v2-app v2-title">
+        <div className="v2-title-inner">
+          <div className="v2-title-crests">
+            <Crest team="nangis" />
+            <span className="v2-title-vs">—</span>
+            <Crest team="lagny" />
+          </div>
+          <h1>LES SEPT PRINCES</h1>
+          <p className="v2-title-sub">Nangis contre Lagny · le match du roman</p>
+          <p className="v2-title-desc">
+            Tu es le coach de Nangis. Planifie chaque volee a temps fige,
+            la defense repond en aveugle, le journal explique chaque cause.
+            Un jeu de lecture, pas de reflexes.
+          </p>
+          <button className="v2-resolve v2-enter" onClick={() => setEntered(true)}>
+            Entrer sur le terrain
+          </button>
+          <span className="v2-title-tag">Plus qu'un jeu — une lecture du jeu</span>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="v2-app">
@@ -89,6 +129,8 @@ function AppVolley() {
             selectedPlayer={volley.selectedId}
             trajectories={volley.trajectories}
             openIntervals={volley.gapMarkers}
+            attackingTeam={volley.attackingTeam}
+            slowMotion={slowMotion}
             onPlayerSelect={volley.clickPlayer}
             onCourtClick={volley.attackingTeam === 'nangis' ? volley.clickCourt : undefined}
           />
@@ -200,6 +242,17 @@ function AppVolley() {
               <p className="v2-final">
                 {score.nangis} — {score.lagny}
               </p>
+              {volley.timeline.length > 0 && (
+                <ul className="v2-timeline">
+                  {volley.timeline.slice(-14).map((event, index) => (
+                    <li key={index}>
+                      <span className="v2-timeline-time">{formatTime(event.timeSeconds)}</span>
+                      <span className={`v2-timeline-type ${event.type}`}>{event.type}</span>
+                      <span className="v2-timeline-result">{event.result}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
               <button className="v2-resolve" onClick={volley.restart}>Rejouer la meme seed</button>
             </section>
           )}
