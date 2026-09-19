@@ -162,3 +162,12 @@ Ce fichier trace les decisions qui structurent le projet. Une nouvelle decision 
 - Raison : rendre la spec D-019 jouable sans attendre V1 ; prouver les trois proprietes V0 (provoquer une ouverture, fermer sans suivre le ballon, comprendre apres coup) en jeu.
 - Impact : `app/src/hooks/useVolleyEngine.ts` (`useVolleyMatch`), `app/src/components/VolleyPlanner.tsx` + CSS, `app/src/components/AppVolley.tsx` + CSS, `Field.tsx` (`onCourtClick`), `fieldRenderer.ts` (traces attackSpace/move/cut/stretch). Licite : VALIDE (ronds, fleches, zones, texte). Tests : engine build OK, volley 11/11 OK, app build 49 modules OK.
 
+## D-021 - Refonte visuelle premium de l ecran de match
+
+- Date : 2026-09-19
+- Statut : adoptee (demande joueur : « je veux changer de design, je trouve ca laid, les mockups sont deja bcp mieux », carte blanche dans le cadre licite)
+- Decision : l ecran de la volee passe a une mise en page en quatre zones : HUD superieur (blasons geometriques abstraits, score, chrono, possession), terrain central premium (pelouse a bandes discretes, jetons a halo d equipe, lignes claires fines), rail droit (possession + energie et pression du joueur selectionne, menaces sur le porteur avec distances reelles, breches, journal causal), dock d intentions en bas (cartes Attaquer, Fixer, Passer, Tirer, Placer, Couper, Etirer, bouton or VALIDER). Palette : fond quasi noir bleute #05090f, terrain bleu-ardoise profond, Nangis bleu #2f7fe0, Lagny orange #e2693a, or #d9a62e pour la decision. Les donnees du rail (energie, pression, defense, duel, anticipation, distances) proviennent integralement du moteur (observables, jamais mecanismes, spec 19 §6).
+- Raison : la boucle volee est conceptuellement juste mais l ecran ne ressemblait a rien ; les mockups du joueur montrent la cible et restent 100 pour cent compatibles licite (ronds, lignes, zones, texte).
+- Impact : `AppVolley.tsx/.css` (nouveau layout v2), `VolleyPlanner.tsx/.css` (dock de cartes), `fieldRenderer.ts` (bandes de pelouse, halo des jetons), `fieldConstants.ts` (palette v2), `useVolleyEngine.ts` (selectedInfo, threats), `index.css` (variables). Licite : VALIDE (geometrie pure, aucun etre anime, aucune musique, aucun pari). Moteur et boucle de jeu inchanges.
+
+

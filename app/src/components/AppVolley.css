@@ -1,10 +1,191 @@
-.app-volley { min-height: 100vh; background: #0b111b; color: #eef2f8; }
-.volley-hud { padding: 12px 16px; border-bottom: 1px solid rgba(148,163,184,0.2); }
-.volley-score { display: flex; justify-content: space-between; align-items: center; font-weight: 800; }
-.volley-score .chrono { color: #93a4bb; font-weight: 600; }
-.volley-sub { display: flex; gap: 12px; align-items: center; color: #93a4bb; font-size: 13px; margin-top: 6px; }
-.volley-sub button { margin-left: auto; background: #223048; color: #eef2f8; border: 1px solid rgba(148,163,184,0.35); border-radius: 8px; padding: 6px 10px; cursor: pointer; }
-.volley-main { display: grid; grid-template-columns: 1.4fr 1fr; gap: 12px; padding: 12px 16px; }
-.volley-field { min-height: 420px; }
-.volley-side { display: flex; flex-direction: column; gap: 12px; }
-@media (max-width: 1000px) { .volley-main { grid-template-columns: 1fr; } }
+/* Design v2 (D-021) : logiciel tactique premium. Fond quasi noir bleute,
+   panneaux verre sombre, accents or pour la decision, bleu Nangis / orange
+   Lagny. Aucune image, aucune representation d'etre anime. */
+.v2-app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background:
+    radial-gradient(1200px 500px at 50% -10%, rgba(47, 127, 224, 0.14), transparent 60%),
+    radial-gradient(900px 420px at 85% 110%, rgba(226, 105, 58, 0.08), transparent 60%),
+    #05090f;
+  color: #e8eef7;
+}
+
+/* HUD superieur */
+.v2-hud {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 10px 22px;
+  border-bottom: 1px solid rgba(140, 170, 210, 0.18);
+  background: linear-gradient(180deg, rgba(16, 28, 44, 0.9), rgba(9, 15, 25, 0.9));
+}
+.v2-team { display: flex; align-items: center; gap: 10px; min-width: 200px; }
+.v2-team-right { justify-content: flex-end; margin-left: auto; }
+.v2-crest { width: 34px; height: 38px; filter: drop-shadow(0 0 6px rgba(47, 127, 224, 0.35)); }
+.v2-team-right .v2-crest { filter: drop-shadow(0 0 6px rgba(226, 105, 58, 0.35)); }
+.v2-team-text { display: flex; flex-direction: column; gap: 2px; }
+.v2-team-right .v2-team-text { text-align: right; }
+.v2-team-name { font-weight: 800; letter-spacing: 0.14em; font-size: 15px; }
+.v2-possession {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #7488a3;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.v2-possession i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(120, 140, 165, 0.4);
+}
+.v2-possession.on { color: #8ec4ff; }
+.v2-possession.on i { background: #3f8cf0; box-shadow: 0 0 8px #3f8cf0; }
+.v2-possession.lagny.on { color: #ffb287; }
+.v2-possession.lagny.on i { background: #e2693a; box-shadow: 0 0 8px #e2693a; }
+.v2-scorebox {
+  margin: 0 auto;
+  text-align: center;
+  padding: 2px 26px 6px;
+  border: 1px solid rgba(140, 170, 210, 0.22);
+  border-top: 2px solid #d9a62e;
+  border-radius: 10px;
+  background: rgba(10, 18, 30, 0.75);
+}
+.v2-score-line { display: flex; align-items: baseline; gap: 14px; justify-content: center; }
+.v2-score-num { font-size: 30px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.v2-score-sep { color: #7488a3; font-weight: 300; }
+.v2-chrono { font-size: 13px; font-weight: 700; color: #d9a62e; letter-spacing: 0.1em; }
+.v2-hud-meta { font-size: 10.5px; color: #7488a3; margin-top: 2px; }
+.v2-restart {
+  background: transparent;
+  border: 1px solid rgba(140, 170, 210, 0.35);
+  color: #b8c8de;
+  border-radius: 8px;
+  padding: 7px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.v2-restart:hover { border-color: #d9a62e; color: #f0d488; }
+
+/* Corps : terrain + rail */
+.v2-main {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 318px;
+  gap: 14px;
+  padding: 14px 18px;
+  min-height: 0;
+}
+.v2-field {
+  min-height: 430px;
+  border: 1px solid rgba(140, 170, 210, 0.16);
+  border-radius: 14px;
+  background: rgba(7, 12, 20, 0.6);
+  padding: 10px;
+}
+.v2-rail { display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
+.v2-card {
+  background: rgba(13, 21, 34, 0.85);
+  border: 1px solid rgba(140, 170, 210, 0.18);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+.v2-card h3 {
+  margin: 0 0 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #8fa6c4;
+}
+.v2-empty { color: #7488a3; font-size: 12.5px; margin: 0; }
+.v2-note { color: #b8c8de; font-size: 12px; margin: 8px 0 0; }
+.v2-possession-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.v2-possession-head strong { display: block; font-size: 14px; letter-spacing: 0.04em; }
+.v2-sub { display: block; font-size: 11.5px; color: #8fa6c4; }
+.v2-mini-token {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 13px;
+  color: #f4f8ff;
+  background: radial-gradient(circle at 32% 28%, #8ec4ff, #2f7fe0);
+  box-shadow: 0 0 10px rgba(47, 127, 224, 0.5);
+}
+.v2-mini-token.lagny {
+  background: radial-gradient(circle at 32% 28%, #ffb287, #c2501f);
+  box-shadow: 0 0 10px rgba(226, 105, 58, 0.5);
+}
+.v2-gauge { margin-top: 8px; }
+.v2-gauge-label { display: flex; justify-content: space-between; font-size: 11.5px; color: #b8c8de; margin-bottom: 3px; }
+.v2-gauge-track { height: 6px; border-radius: 4px; background: rgba(140, 170, 210, 0.15); overflow: hidden; }
+.v2-gauge-fill { height: 100%; border-radius: 4px; }
+.v2-gauge-fill.energy { background: linear-gradient(90deg, #2f7fe0, #5eead4); }
+.v2-gauge-fill.pressure { background: linear-gradient(90deg, #d9a62e, #e2693a); }
+.v2-threat { display: flex; align-items: center; gap: 10px; padding: 4px 0; }
+.v2-threat-text strong { display: block; font-size: 13px; }
+.v2-gap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  padding: 4px 0;
+  color: #b8c8de;
+}
+.v2-gap-id { font-weight: 700; color: #8fa6c4; }
+.v2-gap em { margin-left: auto; font-style: normal; font-size: 11px; color: #7488a3; }
+.v2-gap.open em { color: #5eead4; font-weight: 700; }
+.v2-journal ul { margin: 6px 0 0; padding-left: 18px; font-size: 12px; color: #cdd9ea; }
+.v2-journal li { margin-bottom: 4px; }
+.v2-help summary { cursor: pointer; font-size: 12px; color: #8fa6c4; letter-spacing: 0.1em; text-transform: uppercase; }
+.v2-help ol { margin: 8px 0 0; padding-left: 18px; font-size: 12px; color: #b8c8de; }
+.v2-help li { margin-bottom: 3px; }
+.v2-over .v2-final { font-size: 26px; font-weight: 800; text-align: center; margin: 4px 0 10px; }
+.v2-resolve {
+  width: 100%;
+  background: linear-gradient(180deg, #f0c33c, #d9a62e);
+  color: #14100a;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  border: none;
+  border-radius: 9px;
+  padding: 10px 14px;
+  cursor: pointer;
+}
+.v2-resolve:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Dock d'actions */
+.v2-dock { padding: 0 18px 8px; }
+.v2-defense-note {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: rgba(13, 21, 34, 0.85);
+  border: 1px solid rgba(140, 170, 210, 0.18);
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-size: 13px;
+  color: #b8c8de;
+}
+.v2-defense-note .v2-resolve { width: auto; margin-left: auto; }
+.v2-tagline {
+  text-align: center;
+  font-size: 10px;
+  letter-spacing: 0.3em;
+  color: rgba(140, 170, 210, 0.4);
+  padding-bottom: 8px;
+}
+
+@media (max-width: 1080px) {
+  .v2-main { grid-template-columns: 1fr; }
+  .v2-team { min-width: 0; }
+}

@@ -15,7 +15,7 @@ import {
   type VolleyPlan
 } from '@engine/volley.js'
 import type { GapObservation } from '@engine/spatial.js'
-import type { MatchState, TeamId } from '@engine/types.js'
+import type { MatchState, PlayerRole, TeamId } from '@engine/types.js'
 import type { TacticalTrajectory, OpenIntervalMarker } from '../utils/fieldRenderer'
 
 // Boucle vollee V0 sandbox (D-019, spec 19) : le temps de match n'avance que
@@ -182,6 +182,31 @@ export interface VolleyUIPlayer {
   position: { x: number; y: number }
 }
 
+// Rail droit (D-021) : le joueur selectionne et le defenseur le plus proche
+// du porteur, avec les observables du moteur. Les jauges resument des faits
+// calcules par le moteur, jamais des mecanismes (spec 19 §6).
+export interface VolleyUIThreat {
+  id: string
+  name: string
+  number: number
+  distanceMeters: number
+  defense: number
+  duel: number
+  acceleration: number
+  anticipation: number
+}
+
+export interface VolleyUISelected {
+  id: string
+  name: string
+  number: number
+  role: PlayerRole
+  team: TeamId
+  energy: number
+  pressure: number
+  hasBall: boolean
+}
+
 export interface VolleyUIMatch {
   players: VolleyUIPlayer[]
   ball: { position: { x: number; y: number } }
@@ -239,6 +264,7 @@ export function useVolleyMatch(seed = 44, minutesPerHalf: number = DEFAULT_MATCH
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [lastVolley, setLastVolley] = useState<PlannedVolley | null>(null)
   const [volleyCount, setVolleyCount] = useState(0)
+  const [pendingKind, setPendingKind] = useState<AttackVolleyIntent | null>(null)
   const seedRef = useRef(seed)
   const matchSeconds = defaultHalfSeconds(minutesPerHalf) * 2
 
@@ -252,6 +278,7 @@ export function useVolleyMatch(seed = 44, minutesPerHalf: number = DEFAULT_MATCH
     setSelectedId(initial.ball.holderId)
     setLastVolley(null)
     setVolleyCount(0)
+    setPendingKind(null)
   }, [])
 
   useEffect(() => { start() }, [start])
@@ -262,14 +289,35 @@ export function useVolleyMatch(seed = 44, minutesPerHalf: number = DEFAULT_MATCH
   const addOrder = useCallback((kind: AttackVolleyIntent, targetId?: string) => {
     const current = engineState
     if (!current) return
-    const actorId = selectedId ?? current.ball.holderId
-    const actor = current.players[actorId]
-    if (!actor) return
-    const order: VolleyDraftOrder = { id: `ordre-${Date.now()}-${Math.floor(Math.random() * 9999)}`, actorId, kind }
-    if (kind === 'pass' || kind === 'fix') {
-      if (!targetId) return
-      order.targetId = targetId
-    } else if (kind === 'move' || kind === 'attackSpace' || kind === 'cut' || kind === 'stretch') {
+    // Tir et passe partent toujours du porteur (validation moteur).
+    if (kind === 'shoot') {
+      const holder = current.ball.holderId
+      if (!current.players[holder]) return
+      setDraft((prev) => [...prev, { id: `ordre-${Date.now()}-${Math.floor(Math.random() * 9999)}`, actorId: holder, kind }])
+      setPendingKind(null)
+      return
+    }
+    if (kind === 'pass') {
+      const holder = current.ball.holderId
+      if (!targetId) { setPendingKind('pass'); return }
+      if (!current.players[targetId]) return
+      setDraft((prev) => [...prev, { id: `ordre-${Date.now()}-${Math.floor(Math.random() * 9999)}`, actorId: holder, kind, targetId }])
+      setPendingKind(null)
+      return
+    }
+    if (kind === 'fix') {
+      if (!targetId) { setPendingKind('fix'); return }
+      const actorId = selectedId ?? current.ball.holderId
+      if (!current.players[actorId] || !current.players[targetId]) return
+      setDraft((prev) => [...prev, { id: `ordre-${Date.now()}-${Math.floor(Math.random() * 9999)}`, actorId, kind, targetId }])
+      setPendingKind(null)
+      return
+    }
+    if (kind === 'move' || kind === 'attackSpace' || kind === 'cut' || kind === 'stretch') {
+      const actorId = selectedId ?? current.ball.holderId
+      const actor = current.players[actorId]
+      if (!actor) return
+      const order: VolleyDraftOrder = { id: `ordre-${Date.now()}-${Math.floor(Math.random() * 9999)}`, actorId, kind }
       const dir = actor.team === 'nangis' ? 1 : -1
       if (targetId && current.players[targetId]) {
         const target = current.players[targetId]
@@ -278,9 +326,81 @@ export function useVolleyMatch(seed = 44, minutesPerHalf: number = DEFAULT_MATCH
       } else {
         order.targetPosition = { x: actor.position.x + dir * 3, y: actor.position.y }
       }
+      setDraft((prev) => [...prev, order])
+      // On garde l'intention en attente : le clic terrain suivant affine la fleche.
+      setPendingKind(kind)
+      return
     }
-    setDraft((prev) => [...prev, order])
+    // support et autres : creation directe.
+    const actorId = selectedId ?? current.ball.holderId
+    if (!current.players[actorId]) return
+    setDraft((prev) => [...prev, { id: `ordre-${Date.now()}-${Math.floor(Math.random() * 9999)}`, actorId, kind, targetPosition: targetId && current.players[targetId] ? { ...current.players[targetId].position } : undefined }])
+    setPendingKind(null)
   }, [engineState, selectedId])
+
+  // Clic sur un joueur (terrain ou listes) : termine l'intention en attente
+  // ou selectionne simplement. C'est ce qui rend passe et fixation posables.
+  const clickPlayer = useCallback((playerId: string) => {
+    const current = engineState
+    if (!current || !current.players[playerId]) return
+    const target = current.players[playerId]
+    const holder = current.players[current.ball.holderId]
+    // Passe : uniquement vers un partenaire du porteur.
+    if (pendingKind === 'pass') {
+      if (!holder || target.team !== holder.team) return
+      setDraft((prev) => [...prev, { id: `ordre-${Date.now()}-${Math.floor(Math.random() * 9999)}`, actorId: holder.id, kind: 'pass', targetId: playerId }])
+      setPendingKind(null)
+      return
+    }
+    setSelectedId(playerId)
+    // Fixation : uniquement un defenseur adverse.
+    if (pendingKind === 'fix') {
+      const actorId = selectedId ?? current.ball.holderId
+      const actor = current.players[actorId]
+      if (!actor || target.team === actor.team) return
+      setDraft((prev) => [...prev, { id: `ordre-${Date.now()}-${Math.floor(Math.random() * 9999)}`, actorId, kind: 'fix', targetId: playerId }])
+      setPendingKind(null)
+      return
+    }
+    if (pendingKind === 'move' || pendingKind === 'attackSpace' || pendingKind === 'cut' || pendingKind === 'stretch') {
+      const target = current.players[playerId]
+      setDraft((prev) => {
+        if (prev.length === 0) return prev
+        const copy = [...prev]
+        const last = { ...copy[copy.length - 1] }
+        if (last.kind !== pendingKind) return prev
+        last.targetPosition = { ...target.position }
+        const anchor = current.players[last.actorId]
+        if (anchor && target.team === anchor.team && playerId !== last.actorId) last.actorId = playerId
+        copy[copy.length - 1] = last
+        return copy
+      })
+      setPendingKind(null)
+      return
+    }
+  }, [engineState, pendingKind, selectedId])
+
+  // Clic terrain : affine la derniere fleche spatiale ou cree Attaquer.
+  const clickCourt = useCallback((point: { x: number; y: number }) => {
+    const current = engineState
+    if (!current) return
+    // Une passe ou fixation en attente attend un joueur, pas un point.
+    if (pendingKind === 'pass' || pendingKind === 'fix') return
+    if (pendingKind === 'move' || pendingKind === 'attackSpace' || pendingKind === 'cut' || pendingKind === 'stretch') {
+      setDraft((prev) => {
+        if (prev.length === 0) return prev
+        const copy = [...prev]
+        const last = { ...copy[copy.length - 1] }
+        if (last.kind !== pendingKind) return prev
+        last.targetPosition = { ...point }
+        copy[copy.length - 1] = last
+        return copy
+      })
+      setPendingKind(null)
+      return
+    }
+    aimLastAtPoint(point)
+  }, [engineState, pendingKind])
 
   const setTargetForLast = useCallback((targetId: string) => {
     const current = engineState
@@ -322,9 +442,10 @@ export function useVolleyMatch(seed = 44, minutesPerHalf: number = DEFAULT_MATCH
 
   const removeOrder = useCallback((id: string) => {
     setDraft((prev) => prev.filter((order) => order.id !== id))
+    setPendingKind(null)
   }, [])
 
-  const clearDraft = useCallback(() => setDraft([]), [])
+  const clearDraft = useCallback(() => { setDraft([]); setPendingKind(null) }, [])
 
   const autoPlan = useCallback(() => {
     const current = engineState
@@ -334,6 +455,7 @@ export function useVolleyMatch(seed = 44, minutesPerHalf: number = DEFAULT_MATCH
     const mapped: VolleyDraftOrder[] = plan.orders.map((order, index) => ({ ...order, id: `ordre-ia-${index}` }))
     setDraft(mapped.length > 0 ? mapped : suggestOpeningDraft(current, team))
     setSelectedId(current.ball.holderId)
+    setPendingKind(null)
   }, [engineState])
 
   const budget = useMemo(() => {
@@ -353,6 +475,45 @@ export function useVolleyMatch(seed = 44, minutesPerHalf: number = DEFAULT_MATCH
     return observeDynamicGaps(engineState, attackingTeam)
   }, [engineState, attackingTeam])
 
+  // Rail droit (D-021) : observables moteur du joueur selectionne.
+  const selectedInfo = useMemo<VolleyUISelected | null>(() => {
+    if (!engineState) return null
+    const p = engineState.players[selectedId ?? engineState.ball.holderId]
+    if (!p) return null
+    return {
+      id: p.id,
+      name: p.name,
+      number: playerNumbers[p.id] ?? 99,
+      role: p.role,
+      team: p.team,
+      energy: Math.round(p.energy),
+      pressure: Math.round(p.pressure),
+      hasBall: engineState.ball.holderId === p.id
+    }
+  }, [engineState, selectedId])
+
+  // Menaces : les trois defenseurs les plus proches du porteur, distance reelle.
+  const threats = useMemo<VolleyUIThreat[]>(() => {
+    if (!engineState) return []
+    const holder = engineState.players[engineState.ball.holderId]
+    if (!holder) return []
+    const defending: TeamId = holder.team === 'nangis' ? 'lagny' : 'nangis'
+    return Object.values(engineState.players)
+      .filter((p) => p.team === defending && p.isOnCourt && p.role !== 'goalkeeper')
+      .map((p) => ({
+        id: p.id,
+        name: p.name,
+        number: playerNumbers[p.id] ?? 99,
+        distanceMeters: Math.hypot(p.position.x - holder.position.x, p.position.y - holder.position.y),
+        defense: Math.round(p.defense),
+        duel: Math.round(p.duel),
+        acceleration: Math.round(p.acceleration),
+        anticipation: Math.round(p.anticipation)
+      }))
+      .sort((a, b) => a.distanceMeters - b.distanceMeters)
+      .slice(0, 3)
+  }, [engineState])
+
   const gapMarkers: OpenIntervalMarker[] = useMemo(() => {
     return gaps.filter((gap) => gap.width >= 1.4).map((gap) => ({
       id: gap.id,
@@ -365,8 +526,9 @@ export function useVolleyMatch(seed = 44, minutesPerHalf: number = DEFAULT_MATCH
 
   const lockAndResolve = useCallback(() => {
     const current = engineState
-    if (!current || draft.length === 0) return
+    if (!current) return
     const team: TeamId = current.teams.nangis.possession ? 'nangis' : 'lagny'
+    if (team === 'nangis' && draft.length === 0) return
     const attack = team === 'nangis' ? draftToPlan(current, team, draft) : chooseVolleyAttack(current, team)
     const defense = chooseVolleyDefense(current, team)
     const { state: next, planned } = resolveVolleyTurn(current, attack, defense, seedRef.current)
@@ -378,15 +540,17 @@ export function useVolleyMatch(seed = 44, minutesPerHalf: number = DEFAULT_MATCH
     draftCounter = 0
     setDraft(suggestOpeningDraft(next, nextTeam))
     setSelectedId(next.ball.holderId)
+    setPendingKind(null)
   }, [engineState, draft])
 
   const isOver = match ? match.time >= matchSeconds : false
 
   return {
     engineState, match, draft, trajectories, gapMarkers, gaps,
-    budget, validation, lastVolley, volleyCount,
+    selectedInfo, threats,
+    budget, validation, lastVolley, volleyCount, pendingKind, setPendingKind,
     holderId, attackingTeam, selectedId, setSelectedId,
-    addOrder, setTargetForLast, aimLastAtPoint,
+    addOrder, clickPlayer, clickCourt, setTargetForLast, aimLastAtPoint,
     removeOrder, clearDraft, autoPlan, lockAndResolve,
     restart: start, isOver,
     matchSeconds, matchLength: matchLengthSeconds(defaultHalfSeconds(minutesPerHalf))

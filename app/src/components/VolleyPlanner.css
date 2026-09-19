@@ -1,10 +1,53 @@
-.volley-planner {
-  background: #101825;
-  border: 1px solid rgba(148, 163, 184, 0.25);
-  border-radius: 12px;
-  padding: 16px;
-  color: #eef2f8;
+/* Dock d'intentions v2 (D-021) : cartes premium sous le terrain. */
+.v2-planner {
+  background: rgba(13, 21, 34, 0.9);
+  border: 1px solid rgba(140, 170, 210, 0.18);
+  border-radius: 14px;
+  padding: 12px 16px;
+  color: #e8eef7;
 }
+.v2-planner .volley-planner-head h2 { font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; }
+.v2-planner .volley-planner-head p { color: #7488a3; font-size: 11.5px; }
+.v2-planner .volley-kind {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  background: linear-gradient(180deg, rgba(30, 45, 68, 0.9), rgba(18, 28, 44, 0.9));
+  border: 1px solid rgba(140, 170, 210, 0.28);
+  border-radius: 10px;
+  padding: 8px 14px;
+  min-width: 108px;
+  text-align: left;
+}
+.v2-planner .volley-kind:hover { border-color: #d9a62e; }
+.v2-planner .volley-kind.pending {
+  border-color: #d9a62e;
+  color: #f0d488;
+  box-shadow: 0 0 12px rgba(217, 166, 46, 0.25);
+}
+.v2-planner .volley-kind-label { font-weight: 800; font-size: 13px; letter-spacing: 0.04em; }
+.v2-planner .volley-kind-hint { font-size: 10.5px; color: #8fa6c4; font-weight: 400; }
+.v2-planner .volley-kind.pending .volley-kind-hint { color: #d9b85c; }
+.v2-planner .volley-actions .volley-resolve {
+  background: linear-gradient(180deg, #f0c33c, #d9a62e);
+  color: #14100a;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  border: none;
+  border-radius: 9px;
+}
+.v2-planner .volley-order {
+  background: rgba(18, 28, 44, 0.9);
+  border: 1px solid rgba(140, 170, 210, 0.16);
+}
+.v2-planner .volley-target {
+  background: rgba(217, 166, 46, 0.1);
+  border: 1px dashed rgba(217, 166, 46, 0.6);
+}
+.v2-planner .volley-player { border-radius: 999px; }
+.v2-planner .volley-player.selected { border-color: #8ec4ff; box-shadow: 0 0 0 1px rgba(142, 196, 255, 0.4) inset; }
+
 .volley-planner-head {
   display: flex;
   justify-content: space-between;
@@ -80,6 +123,20 @@
 }
 .volley-causal ul { margin: 6px 0 0; padding-left: 18px; }
 .volley-meta { display: flex; gap: 12px; color: #93a4bb; font-size: 12px; margin-top: 12px; }
+.volley-kind:disabled { opacity: 0.45; cursor: not-allowed; }
+.volley-player.targetable { border-color: #facc15; box-shadow: 0 0 0 1px rgba(250, 204, 21, 0.35) inset; }
+.volley-player.holder::after { content: ' •'; color: #facc15; }
+.volley-help {
+  background: #0c1220;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 8px;
+  padding: 10px 12px 10px 28px;
+  font-size: 13px;
+  color: #cbd5e1;
+}
+.volley-help h3 { margin: 0 0 6px; font-size: 14px; color: #93a4bb; margin-left: -16px; }
+.volley-help ol { margin: 0; padding-left: 0; list-style: decimal; }
+.volley-help li { margin-bottom: 3px; }
 @media (max-width: 900px) {
   .volley-columns { grid-template-columns: 1fr; }
 }

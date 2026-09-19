@@ -5,20 +5,20 @@
 }
 
 :root {
-  --bg-dark: #0a0e1a;
-  --bg-medium: #141928;
-  --bg-light: #1e2537;
-  --field-bg: #2a3447;
-  --line-color: #4a5568;
-  --text-primary: #e2e8f0;
-  --text-secondary: #94a3b8;
-  --nangis-color: #3b82f6;
-  --lagny-color: #ef4444;
+  --bg-dark: #05090f;
+  --bg-medium: #0d1522;
+  --bg-light: #16212f;
+  --field-bg: #16283d;
+  --line-color: rgba(148, 178, 214, 0.42);
+  --text-primary: #e8eef7;
+  --text-secondary: #8fa6c4;
+  --nangis-color: #2f7fe0;
+  --lagny-color: #e2693a;
   --ball-color: #fbbf24;
-  --action-color: #10b981;
-  --warning-color: #f59e0b;
-  --danger-color: #ef4444;
-  --neutral-color: #64748b;
+  --action-color: #5eead4;
+  --warning-color: #d9a62e;
+  --danger-color: #f43f5e;
+  --neutral-color: #7488a3;
 }
 
 body {

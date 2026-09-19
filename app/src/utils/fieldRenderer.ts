@@ -7,7 +7,8 @@ import {
   COLORS,
   courtToCanvas,
   teamColor,
-  teamLightColor
+  teamLightColor,
+  teamSoftColor
 } from './fieldConstants'
 import {
   COURT_LENGTH,
@@ -71,7 +72,8 @@ export function drawField(
   const toCanvas = (p: { x: number; y: number }): [number, number] =>
     courtToCanvas(p.x, p.y, pxm)
 
-  // Fond hors terrain, puis surface du terrain.
+  // Fond hors terrain, puis surface du terrain avec texture de pelouse
+  // directionnelle discrete (bandes verticales alternees, D-021).
   ctx.fillStyle = COLORS.backdrop
   ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height)
 
@@ -83,6 +85,23 @@ export function drawField(
   gradient.addColorStop(1, COLORS.fieldGradientBottom)
   ctx.fillStyle = gradient
   ctx.fillRect(fieldLeft, fieldTop, fieldWidth, fieldHeight)
+
+  ctx.save()
+  ctx.beginPath()
+  ctx.rect(fieldLeft, fieldTop, fieldWidth, fieldHeight)
+  ctx.clip()
+  const stripeCount = 10
+  for (let i = 0; i < stripeCount; i += 1) {
+    if (i % 2 !== 0) continue
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.022)'
+    ctx.fillRect(
+      fieldLeft + (fieldWidth / stripeCount) * i,
+      fieldTop,
+      fieldWidth / stripeCount,
+      fieldHeight
+    )
+  }
+  ctx.restore()
 
   // Contour et ligne mediane.
   ctx.strokeStyle = COLORS.linesStrong
@@ -230,17 +249,7 @@ function drawGoal(
   const outward = x1 < ctx.canvas.width / 2 ? -1 : 1
   const backX = x1 + outward * depth
 
-  // Poteau arriere : la cage fermee par trois cotes.
-  ctx.strokeStyle = COLORS.goal
-  ctx.lineWidth = 4
-  ctx.beginPath()
-  ctx.moveTo(x1, y1)
-  ctx.lineTo(backX, y1)
-  ctx.lineTo(backX, y2)
-  ctx.lineTo(x2, y2)
-  ctx.stroke()
-
-  // Filet discret.
+  // Filet discret derriere la cage.
   ctx.save()
   ctx.strokeStyle = COLORS.goalNet
   ctx.lineWidth = 1
@@ -253,6 +262,32 @@ function drawGoal(
     ctx.stroke()
   }
   ctx.restore()
+
+  // Montants arrieres en blanc sobre.
+  ctx.strokeStyle = COLORS.goal
+  ctx.lineWidth = 3
+  ctx.beginPath()
+  ctx.moveTo(x1, y1)
+  ctx.lineTo(backX, y1)
+  ctx.moveTo(x2, y2)
+  ctx.lineTo(backX, y2)
+  ctx.moveTo(backX, y1)
+  ctx.lineTo(backX, y2)
+  ctx.stroke()
+
+  // Barre frontale : bandes rouge et blanc (motif reglementaire, geometrie
+  // pure, D-021). C est la seule touche de rouge du terrain.
+  const stripes = 8
+  for (let i = 0; i < stripes; i += 1) {
+    const yA = y1 + ((y2 - y1) / stripes) * i
+    const yB = y1 + ((y2 - y1) / stripes) * (i + 1)
+    ctx.strokeStyle = i % 2 === 0 ? '#e7eef8' : '#c33b2e'
+    ctx.lineWidth = 4
+    ctx.beginPath()
+    ctx.moveTo(x1, yA)
+    ctx.lineTo(x1, yB)
+    ctx.stroke()
+  }
 }
 
 function drawBall(
@@ -605,6 +640,16 @@ function drawPlayer(
   const radius = PLAYER_RADIUS * pxm
 
   ctx.save()
+
+  // Halo lumineux du jeton (D-021) : une aura dans la couleur d'equipe,
+  // geometrie pure, jamais de silhouette.
+  const glow = ctx.createRadialGradient(x, y, radius * 0.6, x, y, radius * 2.4)
+  glow.addColorStop(0, teamSoftColor(player.team))
+  glow.addColorStop(1, 'rgba(0, 0, 0, 0)')
+  ctx.fillStyle = glow
+  ctx.beginPath()
+  ctx.arc(x, y, radius * 2.4, 0, Math.PI * 2)
+  ctx.fill()
 
   // Ombre du jeton : une ellipse au sol, jamais une silhouette.
   ctx.fillStyle = 'rgba(0, 0, 0, 0.4)'

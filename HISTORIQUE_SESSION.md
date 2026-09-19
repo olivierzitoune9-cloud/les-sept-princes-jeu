@@ -133,6 +133,25 @@ Retour du coach : en phase offensive, l'écran lui demande de choisir la défens
 
 Session dédiée éditeur de flèches `app/` : tracé des intentions sur canvas, plans verrouillés, relecture des gaps/fenêtres en direct, branchement `resolveVolley` à la place de l'ancienne boucle. Avant ou après : passe de consolidation des 4 échecs `engine.test.ts` préexistants.
 
+## Session 6 — 18 septembre 2026 (nuit) : D-020, volee jouable V0 dans l interface
+
+### 1. Demande joueur
+- Pouvoir jouer la nouvelle interface et la refonte a la fin ; quand fini : commit, push, historique.
+
+### 2. Code interface (ancienne boucle conservee mais non branchee)
+- `app/src/main.tsx` branche `AppVolley` : HUD score + chrono + compteur de volees, Field, planificateur, journal causal, breches.
+- `app/src/hooks/useVolleyEngine.ts` (nouveau, `useVolleyMatch`) : temps fige pendant le plan, `draftToPlan`, defense aveugle `chooseVolleyDefense`, `resolveVolley` puis remise en jeu terminale, horloge FIFA 2x10 min sans vitesses, budget 3+2 affiche, validation du plan montree.
+- `app/src/components/VolleyPlanner.tsx` + CSS : 7 intentions (Attaquer, Fixer, Passer, Tirer, Placer, Couper, Etirer), cibles partenaires et defenseurs, verrouillage, IA qui propose.
+- `app/src/components/AppVolley.tsx` + CSS : mise en page terrain + plan + journaux.
+- `Field.tsx` : `onCourtClick` vise un point pour la derniere fleche ; `fieldRenderer.ts` trace `attackSpace/move/cut/stretch` en plus de run/cross.
+
+### 3. Gouvernance et validation
+- D-020 inscrite dans `docs/09`, suivi V0 dans `docs/17`.
+- Preuves : `engine build` OK (`build-out.log`), `volley.test.ts` 11/11 OK (`volley-test.log`), `app build` OK 49 modules (`app-build2.log`), `vite dev` demarre sur `http://localhost:5173/` (`dev-volley.log`).
+- Licite : VALIDE (ronds, fleches, zones, texte ; rien d anime ; pas de musique ; pas de pari).
+- Reste a jouer : Yanis vers Aaron contre Mael, arret anticipe, journal causal en jeu ; puis V1 (pivot, ecrans, croises, renversement).
+
+
 ## Leçons de session
 
 1. Un déploiement rouge n'implique pas un bug de code : vérifier d'abord `git log origin/main -1`.
@@ -141,3 +160,21 @@ Session dédiée éditeur de flèches `app/` : tracé des intentions sur canvas,
 4. Terminal : une commande à la fois, redirection vers fichier temporaire, lecture du fichier.
 5. Contrer un échec de test par comparatif factuel avant de toucher au code : ici `sum.txt`/`tj.json` prouvent les 4 échecs antérieurs à la session, le diff git prouve l'absence de régression.
 6. Un test qui affirme le contraire du hand (fermeture globale d'un bloc qui coulisse) doit être reformulé en propriété locale mesurable, pas assoupli : la paire visée qui se resserre sous contain vaut mieux qu'une fenêtre max globale trompeuse.
+
+
+## Session 7 - 19 septembre 2026 : D-021, refonte visuelle premium
+
+### 1. Demande joueur
+- Carte blanche dans le cadre licite ; doute sur la direction ; design juge laid, mockups fournis comme reference.
+
+### 2. Diagnostic rendu
+- La boucle volee (D-019/D-020) est conservee : elle est la bonne direction (chaine d avantages, lecture du jeu). Pas de troisieme refonte de gameplay.
+- Le probleme etait la presentation. Refonte visuelle v2 : HUD score/chrono/possession avec blasons geometriques abstraits, terrain premium (pelouse a bandes, jetons a halo, cages a bandes rouge-blanc), rail droit (possession + energie/pression moteur, menaces avec distances reelles, breches, journal causal), dock d intentions en cartes avec VALIDER or.
+- Absorption du travail orphelin non committe (UX clic du planificateur, session interrompue) apres validation : tsc 0 erreur, tests vol�e 11/11.
+
+### 3. Validation constatee
+- tsc app : 0 erreur. vite build : OK (49 modules). vitest volley.test.ts : 11/11. Suite engine : 4 echecs strictement identiques aux 4 preexistants documentes (strict assignment, bloc fige, relance, tir en portee) : aucune regression, aucun fichier moteur touche par la refonte visuelle.
+- Licite : VALIDE (geometrie pure, aucun etre anime, aucune musique, aucun pari).
+
+### 4. Reste
+- Jouer un match complet dans le nouveau skin ; V1 volee (pivot, ecrans, croises) ; consolidation des 4 echecs moteur preexistants.

@@ -366,11 +366,18 @@ export function resolveVolley(
         continue;
       }
       if (order.kind === 'shoot') {
-        // Pas encore en portee : on reessaie au prochain tick, l'ordre reste vif.
+        // Hors de portee : le tireur attaque la zone de tir, il ne reste pas
+        // immobile (une fleche = une intention continue). Le tir part des que
+        // la geometrie le permet.
         if (attemptShot(order)) {
           run.done = true;
           break;
         }
+        const goalX = attackingTeam === 'nangis' ? 40 : 0;
+        const before = { ...actor.position };
+        actor.position = stepToward(actor.position, { x: goalX, y: 10 }, locomotionSpeed(actor) * TICK * ramp(elapsed));
+        track(moved, actor.id, dist(before, actor.position));
+        if (working.ball.holderId === actor.id) working.ball.position = { ...actor.position };
         continue;
       }
       if (order.kind === 'fix') {

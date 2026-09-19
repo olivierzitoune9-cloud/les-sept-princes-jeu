@@ -205,7 +205,10 @@ const Field: React.FC<FieldProps> = ({
         onTrajectorySelect(passTraj.actionId)
         return
       }
+      // Un clic sur un pion ne doit jamais viser un point du terrain :
+      // sinon un clic pendant une intention en attente se termine en doublon.
       onPlayerSelect(clickedPlayer.id)
+      return
     }
     // Clic terrain libre : vise un point pour la volee planifiee.
     if (onCourtClick) {
